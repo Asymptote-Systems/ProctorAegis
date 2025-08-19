@@ -548,3 +548,64 @@ def delete_audit_log(db: Session, id: UUID) -> Optional[models.AuditLog]:
         db.delete(db_obj)
         db.commit()
     return db_obj
+
+def get_student_exam_questions_by_exam_and_student(db: Session, exam_id: UUID, student_id: UUID) -> List[models.StudentExamQuestion]:
+    """Get all assigned questions for a specific student in a specific exam"""
+    return db.query(models.StudentExamQuestion).filter(
+        models.StudentExamQuestion.exam_id == exam_id,
+        models.StudentExamQuestion.student_id == student_id
+    ).order_by(models.StudentExamQuestion.question_order).all()
+
+def get_students_for_exam(db: Session, exam_id: UUID) -> List[models.StudentExamQuestion]:
+    """Get all students assigned to a specific exam with their questions"""
+    return db.query(models.StudentExamQuestion).filter(
+        models.StudentExamQuestion.exam_id == exam_id
+    ).order_by(models.StudentExamQuestion.student_id, models.StudentExamQuestion.question_order).all()
+
+def get_exam_questions_for_student(db: Session, student_id: UUID, exam_id: UUID) -> List[models.StudentExamQuestion]:
+    """Get questions assigned to a student for a specific exam with full question details"""
+    return db.query(models.StudentExamQuestion).join(
+        models.Question
+    ).filter(
+        models.StudentExamQuestion.student_id == student_id,
+        models.StudentExamQuestion.exam_id == exam_id
+    ).order_by(models.StudentExamQuestion.question_order).all()
+
+def get_student_exam_questions_by_exam(db: Session, exam_id: UUID) -> List[models.StudentExamQuestion]:
+    """Get all question assignments for a specific exam"""
+    return db.query(models.StudentExamQuestion).filter(
+        models.StudentExamQuestion.exam_id == exam_id
+    ).order_by(
+        models.StudentExamQuestion.student_id, 
+        models.StudentExamQuestion.question_order
+    ).all()
+
+def assign_question_to_student(db: Session, exam_id: UUID, student_id: UUID, question_id: UUID, question_order: int, points: int = 0) -> models.StudentExamQuestion:
+    """Assign a question to a student for an exam"""
+    db_obj = models.StudentExamQuestion(
+        exam_id=exam_id,
+        student_id=student_id,
+        question_id=question_id,
+        question_order=question_order,
+        points=points
+    )
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+def bulk_assign_questions_to_students(db: Session, assignments: List[dict]) -> List[models.StudentExamQuestion]:
+    """Bulk assign questions to students
+    assignments format: [{'exam_id': UUID, 'student_id': UUID, 'question_id': UUID, 'question_order': int, 'points': int}, ...]
+    """
+    db_objects = []
+    for assignment in assignments:
+        db_obj = models.StudentExamQuestion(**assignment)
+        db.add(db_obj)
+        db_objects.append(db_obj)
+    
+    db.commit()
+    for obj in db_objects:
+        db.refresh(obj)
+    
+    return db_objects

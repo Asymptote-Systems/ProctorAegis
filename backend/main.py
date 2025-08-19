@@ -618,6 +618,114 @@ def delete_audit_log(log_id: UUID, db: Session = Depends(get_db)):
 def read_root():
     return {"message": "Online Exam System API", "version": "1.0.0"}
 
+# Get assigned questions for a specific student in a specific exam
+@app.get("/exams/{exam_id}/students/{student_id}/questions/", response_model=List[schemas.StudentExamQuestion])
+def get_student_questions_for_exam(exam_id: UUID, student_id: UUID, db: Session = Depends(get_db)):
+    """Get all questions assigned to a specific student for a specific exam"""
+    questions = crud.get_student_exam_questions_by_exam_and_student(db, exam_id=exam_id, student_id=student_id)
+    if not questions:
+        raise HTTPException(status_code=404, detail="No questions found for this student in this exam")
+    return questions
+
+# Get all students and their assigned questions for a specific exam
+@app.get("/exams/{exam_id}/student-questions/", response_model=List[schemas.StudentExamQuestion])
+def get_all_student_questions_for_exam(exam_id: UUID, db: Session = Depends(get_db)):
+    """Get all student question assignments for a specific exam"""
+    assignments = crud.get_student_exam_questions_by_exam(db, exam_id=exam_id)
+    if not assignments:
+        raise HTTPException(status_code=404, detail="No question assignments found for this exam")
+    return assignments
+
+# Get questions with full question details for a student in an exam
+@app.get("/exams/{exam_id}/students/{student_id}/questions-with-details/", response_model=List[schemas.StudentExamQuestionWithQuestion])
+def get_student_questions_with_details(exam_id: UUID, student_id: UUID, db: Session = Depends(get_db)):
+    """Get questions assigned to a student with full question details"""
+    questions = crud.get_exam_questions_for_student(db, student_id=student_id, exam_id=exam_id)
+    if not questions:
+        raise HTTPException(status_code=404, detail="No questions found for this student in this exam")
+    return questions
+
+# Assign a single question to a student
+@app.post("/exams/{exam_id}/students/{student_id}/assign-question/", response_model=schemas.StudentExamQuestion)
+def assign_question_to_student(
+    exam_id: UUID, 
+    student_id: UUID, 
+    question_assignment: schemas.StudentExamQuestionCreate, 
+    db: Session = Depends(get_db)
+):
+    """Assign a question to a student for an exam"""
+    # Validate that the exam_id and student_id in the URL match the request body
+    if question_assignment.exam_id != exam_id or question_assignment.student_id != student_id:
+        raise HTTPException(status_code=400, detail="Exam ID or Student ID mismatch")
+    
+    return crud.create_student_exam_question(db=db, obj_in=question_assignment)
+
+# Bulk assign questions to students
+@app.post("/student-exam-questions/bulk-assign/", response_model=List[schemas.StudentExamQuestion])
+def bulk_assign_questions(
+    bulk_assignment: schemas.BulkStudentExamQuestionCreate, 
+    db: Session = Depends(get_db)
+):
+    """Bulk assign questions to students"""
+    try:
+        assignments = [assignment.dict() for assignment in bulk_assignment.assignments]
+        return crud.bulk_assign_questions_to_students(db=db, assignments=assignments)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error in bulk assignment: {str(e)}")
+
+# Get all exams where a specific student has assigned questions
+@app.get("/students/{student_id}/assigned-exams/", response_model=List[schemas.StudentExamQuestion])
+def get_student_assigned_exams(student_id: UUID, db: Session = Depends(get_db)):
+    """Get all exams where a student has assigned questions"""
+    assignments = db.query(models.StudentExamQuestion).filter(
+        models.StudentExamQuestion.student_id == student_id
+    ).all()
+    if not assignments:
+        raise HTTPException(status_code=404, detail="No exam assignments found for this student")
+    return assignments
+
+# Check if a student has questions assigned for a specific exam
+@app.get("/exams/{exam_id}/students/{student_id}/has-questions/")
+def check_student_has_questions(exam_id: UUID, student_id: UUID, db: Session = Depends(get_db)):
+    """Check if a student has questions assigned for a specific exam"""
+    count = db.query(models.StudentExamQuestion).filter(
+        models.StudentExamQuestion.exam_id == exam_id,
+        models.StudentExamQuestion.student_id == student_id
+    ).count()
+    
+    return {
+        "has_questions": count > 0,
+        "question_count": count,
+        "exam_id": exam_id,
+        "student_id": student_id
+    }
+
+# Get question statistics for an exam
+@app.get("/exams/{exam_id}/question-stats/")
+def get_exam_question_stats(exam_id: UUID, db: Session = Depends(get_db)):
+    """Get statistics about question assignments for an exam"""
+    from sqlalchemy import func
+    
+    stats = db.query(
+        func.count(models.StudentExamQuestion.id).label("total_assignments"),
+        func.count(func.distinct(models.StudentExamQuestion.student_id)).label("students_count"),
+        func.count(func.distinct(models.StudentExamQuestion.question_id)).label("unique_questions"),
+        func.avg(models.StudentExamQuestion.points).label("avg_points")
+    ).filter(
+        models.StudentExamQuestion.exam_id == exam_id
+    ).first()
+    
+    if not stats or stats.total_assignments == 0:
+        raise HTTPException(status_code=404, detail="No question assignments found for this exam")
+    
+    return {
+        "exam_id": exam_id,
+        "total_assignments": stats.total_assignments,
+        "students_with_questions": stats.students_count,
+        "unique_questions_used": stats.unique_questions,
+        "average_points_per_question": float(stats.avg_points) if stats.avg_points else 0
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

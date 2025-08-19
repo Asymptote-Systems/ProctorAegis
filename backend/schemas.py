@@ -546,3 +546,40 @@ class AuditLog(AuditLogBase):
 
     class Config:
         orm_mode = True
+
+# Schema for bulk assignment
+class StudentExamQuestionAssignment(BaseModel):
+    exam_id: UUID
+    student_id: UUID
+    question_id: UUID
+    question_order: int
+    points: Optional[int] = 0
+
+class BulkStudentExamQuestionCreate(BaseModel):
+    assignments: List[StudentExamQuestionAssignment]
+
+# Schema for student exam questions with question details
+class StudentExamQuestionWithQuestion(StudentExamQuestionBase):
+    id: UUID
+    exam_id: UUID
+    student_id: UUID
+    question_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    question: Question  # Include the full question details
+
+    class Config:
+        orm_mode = True
+
+# Schema for student exam questions with student profile
+class StudentExamQuestionWithStudent(StudentExamQuestionBase):
+    id: UUID
+    exam_id: UUID
+    student_id: UUID
+    question_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    student: StudentProfile  # Include student profile details
+
+    class Config:
+        orm_mode = True
