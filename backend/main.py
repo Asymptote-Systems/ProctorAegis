@@ -295,3 +295,329 @@ def update_question(question_id: UUID, question: schemas.QuestionUpdate, db: Ses
     if db_question is None:
         raise HTTPException(status_code=404, detail="Question not found")
     return crud.update_question(db=db, db_obj=db_question, obj_in=question)
+
+@app.delete("/questions/{question_id}", response_model=schemas.Question)
+def delete_question(question_id: UUID, db: Session = Depends(get_db)):
+    db_question = crud.delete_question(db, id=question_id)
+    if db_question is None:
+        raise HTTPException(status_code=404, detail="Question not found")
+    return db_question
+
+# QuestionTestCase routes
+@app.get("/question-test-cases/", response_model=List[schemas.QuestionTestCase])
+def read_question_test_cases(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    test_cases = crud.get_question_test_cases(db, skip=skip, limit=limit)
+    return test_cases
+
+@app.get("/question-test-cases/{test_case_id}", response_model=schemas.QuestionTestCase)
+def read_question_test_case(test_case_id: UUID, db: Session = Depends(get_db)):
+    db_test_case = crud.get_question_test_case(db, id=test_case_id)
+    if db_test_case is None:
+        raise HTTPException(status_code=404, detail="Question test case not found")
+    return db_test_case
+
+@app.post("/question-test-cases/", response_model=schemas.QuestionTestCase)
+def create_question_test_case(test_case: schemas.QuestionTestCaseCreate, db: Session = Depends(get_db)):
+    return crud.create_question_test_case(db=db, obj_in=test_case)
+
+@app.put("/question-test-cases/{test_case_id}", response_model=schemas.QuestionTestCase)
+def update_question_test_case(test_case_id: UUID, test_case: schemas.QuestionTestCaseUpdate, db: Session = Depends(get_db)):
+    db_test_case = crud.get_question_test_case(db, id=test_case_id)
+    if db_test_case is None:
+        raise HTTPException(status_code=404, detail="Question test case not found")
+    return crud.update_question_test_case(db=db, db_obj=db_test_case, obj_in=test_case)
+
+@app.delete("/question-test-cases/{test_case_id}", response_model=schemas.QuestionTestCase)
+def delete_question_test_case(test_case_id: UUID, db: Session = Depends(get_db)):
+    db_test_case = crud.delete_question_test_case(db, id=test_case_id)
+    if db_test_case is None:
+        raise HTTPException(status_code=404, detail="Question test case not found")
+    return db_test_case
+
+# Exam routes
+@app.get("/exams/", response_model=List[schemas.Exam])
+def read_exams(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    exams = crud.get_exams(db, skip=skip, limit=limit)
+    return exams
+
+@app.get("/exams/{exam_id}", response_model=schemas.Exam)
+def read_exam(exam_id: UUID, db: Session = Depends(get_db)):
+    db_exam = crud.get_exam(db, id=exam_id)
+    if db_exam is None:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    return db_exam
+
+@app.post("/exams/", response_model=schemas.Exam)
+def create_exam(exam: schemas.ExamCreate, db: Session = Depends(get_db)):
+    return crud.create_exam(db=db, obj_in=exam)
+
+@app.put("/exams/{exam_id}", response_model=schemas.Exam)
+def update_exam(exam_id: UUID, exam: schemas.ExamUpdate, db: Session = Depends(get_db)):
+    db_exam = crud.get_exam(db, id=exam_id)
+    if db_exam is None:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    return crud.update_exam(db=db, db_obj=db_exam, obj_in=exam)
+
+@app.delete("/exams/{exam_id}", response_model=schemas.Exam)
+def delete_exam(exam_id: UUID, db: Session = Depends(get_db)):
+    db_exam = crud.delete_exam(db, id=exam_id)
+    if db_exam is None:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    return db_exam
+
+# ExamQuestion routes
+@app.get("/exam-questions/", response_model=List[schemas.ExamQuestion])
+def read_exam_questions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    exam_questions = crud.get_exam_questions(db, skip=skip, limit=limit)
+    return exam_questions
+
+@app.get("/exam-questions/{exam_question_id}", response_model=schemas.ExamQuestion)
+def read_exam_question(exam_question_id: UUID, db: Session = Depends(get_db)):
+    db_exam_question = crud.get_exam_question(db, id=exam_question_id)
+    if db_exam_question is None:
+        raise HTTPException(status_code=404, detail="Exam question not found")
+    return db_exam_question
+
+@app.post("/exam-questions/", response_model=schemas.ExamQuestion)
+def create_exam_question(exam_question: schemas.ExamQuestionCreate, db: Session = Depends(get_db)):
+    return crud.create_exam_question(db=db, obj_in=exam_question)
+
+@app.put("/exam-questions/{exam_question_id}", response_model=schemas.ExamQuestion)
+def update_exam_question(exam_question_id: UUID, exam_question: schemas.ExamQuestionUpdate, db: Session = Depends(get_db)):
+    db_exam_question = crud.get_exam_question(db, id=exam_question_id)
+    if db_exam_question is None:
+        raise HTTPException(status_code=404, detail="Exam question not found")
+    return crud.update_exam_question(db=db, db_obj=db_exam_question, obj_in=exam_question)
+
+@app.delete("/exam-questions/{exam_question_id}", response_model=schemas.ExamQuestion)
+def delete_exam_question(exam_question_id: UUID, db: Session = Depends(get_db)):
+    db_exam_question = crud.delete_exam_question(db, id=exam_question_id)
+    if db_exam_question is None:
+        raise HTTPException(status_code=404, detail="Exam question not found")
+    return db_exam_question
+
+# ExamRegistration routes
+@app.get("/exam-registrations/", response_model=List[schemas.ExamRegistration])
+def read_exam_registrations(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    exam_registrations = crud.get_exam_registrations(db, skip=skip, limit=limit)
+    return exam_registrations
+
+@app.get("/exam-registrations/{registration_id}", response_model=schemas.ExamRegistration)
+def read_exam_registration(registration_id: UUID, db: Session = Depends(get_db)):
+    db_registration = crud.get_exam_registration(db, id=registration_id)
+    if db_registration is None:
+        raise HTTPException(status_code=404, detail="Exam registration not found")
+    return db_registration
+
+@app.post("/exam-registrations/", response_model=schemas.ExamRegistration)
+def create_exam_registration(registration: schemas.ExamRegistrationCreate, db: Session = Depends(get_db)):
+    return crud.create_exam_registration(db=db, obj_in=registration)
+
+@app.put("/exam-registrations/{registration_id}", response_model=schemas.ExamRegistration)
+def update_exam_registration(registration_id: UUID, registration: schemas.ExamRegistrationUpdate, db: Session = Depends(get_db)):
+    db_registration = crud.get_exam_registration(db, id=registration_id)
+    if db_registration is None:
+        raise HTTPException(status_code=404, detail="Exam registration not found")
+    return crud.update_exam_registration(db=db, db_obj=db_registration, obj_in=registration)
+
+@app.delete("/exam-registrations/{registration_id}", response_model=schemas.ExamRegistration)
+def delete_exam_registration(registration_id: UUID, db: Session = Depends(get_db)):
+    db_registration = crud.delete_exam_registration(db, id=registration_id)
+    if db_registration is None:
+        raise HTTPException(status_code=404, detail="Exam registration not found")
+    return db_registration
+
+# ExamSession routes
+@app.get("/exam-sessions/", response_model=List[schemas.ExamSession])
+def read_exam_sessions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    exam_sessions = crud.get_exam_sessions(db, skip=skip, limit=limit)
+    return exam_sessions
+
+@app.get("/exam-sessions/{session_id}", response_model=schemas.ExamSession)
+def read_exam_session(session_id: UUID, db: Session = Depends(get_db)):
+    db_session = crud.get_exam_session(db, id=session_id)
+    if db_session is None:
+        raise HTTPException(status_code=404, detail="Exam session not found")
+    return db_session
+
+@app.post("/exam-sessions/", response_model=schemas.ExamSession)
+def create_exam_session(session: schemas.ExamSessionCreate, db: Session = Depends(get_db)):
+    return crud.create_exam_session(db=db, obj_in=session)
+
+@app.put("/exam-sessions/{session_id}", response_model=schemas.ExamSession)
+def update_exam_session(session_id: UUID, session: schemas.ExamSessionUpdate, db: Session = Depends(get_db)):
+    db_session = crud.get_exam_session(db, id=session_id)
+    if db_session is None:
+        raise HTTPException(status_code=404, detail="Exam session not found")
+    return crud.update_exam_session(db=db, db_obj=db_session, obj_in=session)
+
+@app.delete("/exam-sessions/{session_id}", response_model=schemas.ExamSession)
+def delete_exam_session(session_id: UUID, db: Session = Depends(get_db)):
+    db_session = crud.delete_exam_session(db, id=session_id)
+    if db_session is None:
+        raise HTTPException(status_code=404, detail="Exam session not found")
+    return db_session
+
+# Submission routes
+@app.get("/submissions/", response_model=List[schemas.Submission])
+def read_submissions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    submissions = crud.get_submissions(db, skip=skip, limit=limit)
+    return submissions
+
+@app.get("/submissions/{submission_id}", response_model=schemas.Submission)
+def read_submission(submission_id: UUID, db: Session = Depends(get_db)):
+    db_submission = crud.get_submission(db, id=submission_id)
+    if db_submission is None:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    return db_submission
+
+@app.post("/submissions/", response_model=schemas.Submission)
+def create_submission(submission: schemas.SubmissionCreate, db: Session = Depends(get_db)):
+    return crud.create_submission(db=db, obj_in=submission)
+
+@app.put("/submissions/{submission_id}", response_model=schemas.Submission)
+def update_submission(submission_id: UUID, submission: schemas.SubmissionUpdate, db: Session = Depends(get_db)):
+    db_submission = crud.get_submission(db, id=submission_id)
+    if db_submission is None:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    return crud.update_submission(db=db, db_obj=db_submission, obj_in=submission)
+
+@app.delete("/submissions/{submission_id}", response_model=schemas.Submission)
+def delete_submission(submission_id: UUID, db: Session = Depends(get_db)):
+    db_submission = crud.delete_submission(db, id=submission_id)
+    if db_submission is None:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    return db_submission
+
+# SubmissionResult routes
+@app.get("/submission-results/", response_model=List[schemas.SubmissionResult])
+def read_submission_results(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    submission_results = crud.get_submission_results(db, skip=skip, limit=limit)
+    return submission_results
+
+@app.get("/submission-results/{result_id}", response_model=schemas.SubmissionResult)
+def read_submission_result(result_id: UUID, db: Session = Depends(get_db)):
+    db_result = crud.get_submission_result(db, id=result_id)
+    if db_result is None:
+        raise HTTPException(status_code=404, detail="Submission result not found")
+    return db_result
+
+@app.post("/submission-results/", response_model=schemas.SubmissionResult)
+def create_submission_result(result: schemas.SubmissionResultCreate, db: Session = Depends(get_db)):
+    return crud.create_submission_result(db=db, obj_in=result)
+
+@app.put("/submission-results/{result_id}", response_model=schemas.SubmissionResult)
+def update_submission_result(result_id: UUID, result: schemas.SubmissionResultUpdate, db: Session = Depends(get_db)):
+    db_result = crud.get_submission_result(db, id=result_id)
+    if db_result is None:
+        raise HTTPException(status_code=404, detail="Submission result not found")
+    return crud.update_submission_result(db=db, db_obj=db_result, obj_in=result)
+
+@app.delete("/submission-results/{result_id}", response_model=schemas.SubmissionResult)
+def delete_submission_result(result_id: UUID, db: Session = Depends(get_db)):
+    db_result = crud.delete_submission_result(db, id=result_id)
+    if db_result is None:
+        raise HTTPException(status_code=404, detail="Submission result not found")
+    return db_result
+
+# SubmissionEvent routes
+@app.get("/submission-events/", response_model=List[schemas.SubmissionEvent])
+def read_submission_events(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    submission_events = crud.get_submission_events(db, skip=skip, limit=limit)
+    return submission_events
+
+@app.get("/submission-events/{event_id}", response_model=schemas.SubmissionEvent)
+def read_submission_event(event_id: UUID, db: Session = Depends(get_db)):
+    db_event = crud.get_submission_event(db, id=event_id)
+    if db_event is None:
+        raise HTTPException(status_code=404, detail="Submission event not found")
+    return db_event
+
+@app.post("/submission-events/", response_model=schemas.SubmissionEvent)
+def create_submission_event(event: schemas.SubmissionEventCreate, db: Session = Depends(get_db)):
+    return crud.create_submission_event(db=db, obj_in=event)
+
+@app.put("/submission-events/{event_id}", response_model=schemas.SubmissionEvent)
+def update_submission_event(event_id: UUID, event: schemas.SubmissionEventUpdate, db: Session = Depends(get_db)):
+    db_event = crud.get_submission_event(db, id=event_id)
+    if db_event is None:
+        raise HTTPException(status_code=404, detail="Submission event not found")
+    return crud.update_submission_event(db=db, db_obj=db_event, obj_in=event)
+
+@app.delete("/submission-events/{event_id}", response_model=schemas.SubmissionEvent)
+def delete_submission_event(event_id: UUID, db: Session = Depends(get_db)):
+    db_event = crud.delete_submission_event(db, id=event_id)
+    if db_event is None:
+        raise HTTPException(status_code=404, detail="Submission event not found")
+    return db_event
+
+# ExamEvent routes
+@app.get("/exam-events/", response_model=List[schemas.ExamEvent])
+def read_exam_events(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    exam_events = crud.get_exam_events(db, skip=skip, limit=limit)
+    return exam_events
+
+@app.get("/exam-events/{event_id}", response_model=schemas.ExamEvent)
+def read_exam_event(event_id: UUID, db: Session = Depends(get_db)):
+    db_event = crud.get_exam_event(db, id=event_id)
+    if db_event is None:
+        raise HTTPException(status_code=404, detail="Exam event not found")
+    return db_event
+
+@app.post("/exam-events/", response_model=schemas.ExamEvent)
+def create_exam_event(event: schemas.ExamEventCreate, db: Session = Depends(get_db)):
+    return crud.create_exam_event(db=db, obj_in=event)
+
+@app.put("/exam-events/{event_id}", response_model=schemas.ExamEvent)
+def update_exam_event(event_id: UUID, event: schemas.ExamEventUpdate, db: Session = Depends(get_db)):
+    db_event = crud.get_exam_event(db, id=event_id)
+    if db_event is None:
+        raise HTTPException(status_code=404, detail="Exam event not found")
+    return crud.update_exam_event(db=db, db_obj=db_event, obj_in=event)
+
+@app.delete("/exam-events/{event_id}", response_model=schemas.ExamEvent)
+def delete_exam_event(event_id: UUID, db: Session = Depends(get_db)):
+    db_event = crud.delete_exam_event(db, id=event_id)
+    if db_event is None:
+        raise HTTPException(status_code=404, detail="Exam event not found")
+    return db_event
+
+# AuditLog routes
+@app.get("/audit-logs/", response_model=List[schemas.AuditLog])
+def read_audit_logs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    audit_logs = crud.get_audit_logs(db, skip=skip, limit=limit)
+    return audit_logs
+
+@app.get("/audit-logs/{log_id}", response_model=schemas.AuditLog)
+def read_audit_log(log_id: UUID, db: Session = Depends(get_db)):
+    db_log = crud.get_audit_log(db, id=log_id)
+    if db_log is None:
+        raise HTTPException(status_code=404, detail="Audit log not found")
+    return db_log
+
+@app.post("/audit-logs/", response_model=schemas.AuditLog)
+def create_audit_log(log: schemas.AuditLogCreate, db: Session = Depends(get_db)):
+    return crud.create_audit_log(db=db, obj_in=log)
+
+@app.put("/audit-logs/{log_id}", response_model=schemas.AuditLog)
+def update_audit_log(log_id: UUID, log: schemas.AuditLogUpdate, db: Session = Depends(get_db)):
+    db_log = crud.get_audit_log(db, id=log_id)
+    if db_log is None:
+        raise HTTPException(status_code=404, detail="Audit log not found")
+    return crud.update_audit_log(db=db, db_obj=db_log, obj_in=log)
+
+@app.delete("/audit-logs/{log_id}", response_model=schemas.AuditLog)
+def delete_audit_log(log_id: UUID, db: Session = Depends(get_db)):
+    db_log = crud.delete_audit_log(db, id=log_id)
+    if db_log is None:
+        raise HTTPException(status_code=404, detail="Audit log not found")
+    return db_log
+
+# Root endpoint
+@app.get("/")
+def read_root():
+    return {"message": "Online Exam System API", "version": "1.0.0"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
