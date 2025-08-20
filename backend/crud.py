@@ -8,6 +8,7 @@ from typing import List, Optional
 from uuid import UUID
 from . import models
 from . import schemas
+from backend.auth.passwords import hash_password
 
 # User CRUD operations
 def get_user(db: Session, id: UUID) -> Optional[models.User]:
@@ -17,11 +18,17 @@ def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[models.User]
     return db.query(models.User).offset(skip).limit(limit).all()
 
 def create_user(db: Session, obj_in: schemas.UserCreate) -> models.User:
-    db_obj = models.User(**obj_in.dict())
-    db.add(db_obj)
+    db_user = models.User(
+        email=obj_in.email,
+        role=obj_in.role,
+        is_active=obj_in.is_active,
+        extra_data=obj_in.extra_data,
+        password_hash=hash_password(obj_in.password)  # hash here
+    )
+    db.add(db_user)
     db.commit()
-    db.refresh(db_obj)
-    return db_obj
+    db.refresh(db_user)
+    return db_user
 
 def update_user(db: Session, db_obj: models.User, obj_in: schemas.UserUpdate) -> models.User:
     update_data = obj_in.dict(exclude_unset=True)
@@ -609,3 +616,70 @@ def bulk_assign_questions_to_students(db: Session, assignments: List[dict]) -> L
         db.refresh(obj)
     
     return db_objects
+
+# --- append these helper functions to backend/crud.py ---
+
+from sqlalchemy.orm import Session
+from uuid import UUID
+
+from backend import models
+from backend import schemas as app_schemas  # your existing schemas module
+
+
+def get_user_by_email(db: Session, email: str):
+    return db.query(models.User).filter(models.User.email == email).first()
+
+
+def get_user_by_id(db: Session, id):
+    # id may be UUID or string
+    return db.query(models.User).filter(models.User.id == id).first()
+
+
+def update_user_password(db: Session, user: models.User, new_password_hash: str):
+    user.password_hash = new_password_hash
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+# Refresh token bookkeeping using user.extra_data JSONB
+def set_user_refresh_jti(db: Session, user: models.User, jti: str):
+    d = user.extra_data or {}
+    d["refresh_jti"] = jti
+    user.extra_data = d
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def get_user_refresh_jti(user: models.User):
+    d = user.extra_data or {}
+    return d.get("refresh_jti")
+
+
+def set_user_csrf_token(db: Session, user: models.User, csrf: str):
+    d = user.extra_data or {}
+    d["csrf_token"] = csrf
+    user.extra_data = d
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def get_user_csrf_token(user: models.User):
+    d = user.extra_data or {}
+    return d.get("csrf_token")
+
+
+def clear_user_refresh_jti(db: Session, user: models.User):
+    d = user.extra_data or {}
+    d.pop("refresh_jti", None)
+    d.pop("csrf_token", None)
+    user.extra_data = d
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user

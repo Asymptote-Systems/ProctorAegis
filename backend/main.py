@@ -10,12 +10,19 @@ from fastapi import FastAPI, Depends, HTTPException, status, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from backend.config import settings
+#from backend.config import settings
 from backend.database import Base, engine, get_db, SessionLocal
 from backend import crud, schemas
 from backend.wait_for_db import wait_for_db
+from backend.settings import settings
+from backend.auth.router import router as auth_router
+
+from backend.auth.dependencies import require_role
+from backend import models as dbmodels
 
 from backend import models, schemas, crud
+
+from backend.auth.passwords import hash_password
 
 # --- App init ---
 app = FastAPI(title="Online Exam System API", version="1.0.0")
@@ -32,14 +39,15 @@ async def set_security_headers(request: Request, call_next):
     return response
 
 # --- Optional CORS ---
-if settings.cors_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["*"],
-    )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth_router)
 
 # --- Startup: wait for DB & create tables ---
 @app.on_event("startup")
@@ -583,7 +591,7 @@ def delete_exam_event(event_id: UUID, db: Session = Depends(get_db)):
     return db_event
 
 # AuditLog routes
-@app.get("/audit-logs/", response_model=List[schemas.AuditLog])
+@app.get("/audit-logs/", response_model=List[schemas.AuditLog], dependencies=[Depends(require_role(dbmodels.UserRole.ADMIN))])
 def read_audit_logs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     audit_logs = crud.get_audit_logs(db, skip=skip, limit=limit)
     return audit_logs

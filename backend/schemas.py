@@ -21,7 +21,7 @@ class UserBase(BaseModel):
     extra_data: Optional[Dict[str, Any]] = {}
 
 class UserCreate(UserBase):
-    password_hash: str
+    password: str
 
 class UserUpdate(BaseModel):
     email: Optional[str] = None
