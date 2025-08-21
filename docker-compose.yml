@@ -22,6 +22,8 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     container_name: app-backend
+    volumes:
+      - ./secrets:/app/secrets
     env_file:
       - .env
     depends_on:

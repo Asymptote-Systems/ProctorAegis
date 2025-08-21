@@ -21,7 +21,7 @@ class UserBase(BaseModel):
     extra_data: Optional[Dict[str, Any]] = {}
 
 class UserCreate(UserBase):
-    password_hash: str
+    password: str
 
 class UserUpdate(BaseModel):
     email: Optional[str] = None
@@ -215,7 +215,6 @@ class QuestionBase(BaseModel):
 
 class QuestionCreate(QuestionBase):
     category_id: UUID
-    created_by: UUID
 
 class QuestionUpdate(BaseModel):
     category_id: Optional[UUID] = None
@@ -284,7 +283,7 @@ class ExamBase(BaseModel):
     extra_data: Optional[Dict[str, Any]] = {}
 
 class ExamCreate(ExamBase):
-    created_by: UUID
+    pass
 
 class ExamUpdate(BaseModel):
     title: Optional[str] = None

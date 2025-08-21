@@ -10,12 +10,19 @@ from fastapi import FastAPI, Depends, HTTPException, status, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from backend.config import settings
+#from backend.config import settings
 from backend.database import Base, engine, get_db, SessionLocal
 from backend import crud, schemas
 from backend.wait_for_db import wait_for_db
+from backend.settings import settings
+from backend.auth.router import router as auth_router
+
+from backend.auth.dependencies import require_role, get_current_user
+from backend import models as dbmodels
 
 from backend import models, schemas, crud
+
+from backend.auth.passwords import hash_password
 
 # --- App init ---
 app = FastAPI(title="Online Exam System API", version="1.0.0")
@@ -24,22 +31,26 @@ app = FastAPI(title="Online Exam System API", version="1.0.0")
 @app.middleware("http")
 async def set_security_headers(request: Request, call_next):
     response: Response = await call_next(request)
-    response.headers.setdefault("X-Content-Type-Options", "nosniff")
-    response.headers.setdefault("X-Frame-Options", "DENY")
-    response.headers.setdefault("X-XSS-Protection", "0")
-    response.headers.setdefault("Referrer-Policy", "no-referrer")
-    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=()")
+    
+    # Don't add security headers to OPTIONS requests (CORS preflight)
+    if request.method != "OPTIONS":
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("X-XSS-Protection", "0")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=()")
+    
     return response
 
-# --- Optional CORS ---
-if settings.cors_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["*"],
-    )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth_router)
 
 # --- Startup: wait for DB & create tables ---
 @app.on_event("startup")
@@ -286,8 +297,8 @@ def read_question(question_id: UUID, db: Session = Depends(get_db)):
     return db_question
 
 @app.post("/questions/", response_model=schemas.Question)
-def create_question(question: schemas.QuestionCreate, db: Session = Depends(get_db)):
-    return crud.create_question(db=db, obj_in=question)
+def create_question(question: schemas.QuestionCreate, db: Session = Depends(get_db),current_user: models.User = Depends(get_current_user),):
+    return crud.create_question(db=db, obj_in=question, user_id=current_user.id)
 
 @app.put("/questions/{question_id}", response_model=schemas.Question)
 def update_question(question_id: UUID, question: schemas.QuestionUpdate, db: Session = Depends(get_db)):
@@ -348,8 +359,8 @@ def read_exam(exam_id: UUID, db: Session = Depends(get_db)):
     return db_exam
 
 @app.post("/exams/", response_model=schemas.Exam)
-def create_exam(exam: schemas.ExamCreate, db: Session = Depends(get_db)):
-    return crud.create_exam(db=db, obj_in=exam)
+def create_exam(exam: schemas.ExamCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user),):
+    return crud.create_exam(db=db, obj_in=exam, user_id=current_user.id)
 
 @app.put("/exams/{exam_id}", response_model=schemas.Exam)
 def update_exam(exam_id: UUID, exam: schemas.ExamUpdate, db: Session = Depends(get_db)):
@@ -583,7 +594,7 @@ def delete_exam_event(event_id: UUID, db: Session = Depends(get_db)):
     return db_event
 
 # AuditLog routes
-@app.get("/audit-logs/", response_model=List[schemas.AuditLog])
+@app.get("/audit-logs/", response_model=List[schemas.AuditLog], dependencies=[Depends(require_role(dbmodels.UserRole.ADMIN, dbmodels.UserRole.TEACHER))])
 def read_audit_logs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     audit_logs = crud.get_audit_logs(db, skip=skip, limit=limit)
     return audit_logs

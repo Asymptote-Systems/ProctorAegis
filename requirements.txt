@@ -1,8 +1,8 @@
-fastapi==0.110.0
+fastapi==0.95.2
 SQLAlchemy==2.0.29
 psycopg2-binary==2.9.9
 python-dotenv==1.0.1
-uvicorn[standard]==0.29.0
-pydantic[email]
-passlib
-python-jose[cryptography]
+uvicorn[standard]==0.22.0
+pydantic[email]==1.10.15
+passlib==1.7.4
+python-jose[cryptography]==3.3.0
