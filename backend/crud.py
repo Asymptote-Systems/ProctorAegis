@@ -233,8 +233,8 @@ def get_question(db: Session, id: UUID) -> Optional[models.Question]:
 def get_questions(db: Session, skip: int = 0, limit: int = 100) -> List[models.Question]:
     return db.query(models.Question).offset(skip).limit(limit).all()
 
-def create_question(db: Session, obj_in: schemas.QuestionCreate) -> models.Question:
-    db_obj = models.Question(**obj_in.dict())
+def create_question(db: Session, obj_in: schemas.QuestionCreate, user_id: UUID) -> models.Question:
+    db_obj = models.Question(**obj_in.dict(), created_by=user_id)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
@@ -293,8 +293,8 @@ def get_exam(db: Session, id: UUID) -> Optional[models.Exam]:
 def get_exams(db: Session, skip: int = 0, limit: int = 100) -> List[models.Exam]:
     return db.query(models.Exam).offset(skip).limit(limit).all()
 
-def create_exam(db: Session, obj_in: schemas.ExamCreate) -> models.Exam:
-    db_obj = models.Exam(**obj_in.dict())
+def create_exam(db: Session, obj_in: schemas.ExamCreate, user_id: UUID) -> models.Exam:
+    db_obj = models.Exam(**obj_in.dict(), created_by=user_id)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)

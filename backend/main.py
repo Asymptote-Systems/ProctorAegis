@@ -17,7 +17,7 @@ from backend.wait_for_db import wait_for_db
 from backend.settings import settings
 from backend.auth.router import router as auth_router
 
-from backend.auth.dependencies import require_role
+from backend.auth.dependencies import require_role, get_current_user
 from backend import models as dbmodels
 
 from backend import models, schemas, crud
@@ -297,8 +297,8 @@ def read_question(question_id: UUID, db: Session = Depends(get_db)):
     return db_question
 
 @app.post("/questions/", response_model=schemas.Question)
-def create_question(question: schemas.QuestionCreate, db: Session = Depends(get_db)):
-    return crud.create_question(db=db, obj_in=question)
+def create_question(question: schemas.QuestionCreate, db: Session = Depends(get_db),current_user: models.User = Depends(get_current_user),):
+    return crud.create_question(db=db, obj_in=question, user_id=current_user.id)
 
 @app.put("/questions/{question_id}", response_model=schemas.Question)
 def update_question(question_id: UUID, question: schemas.QuestionUpdate, db: Session = Depends(get_db)):
@@ -359,8 +359,8 @@ def read_exam(exam_id: UUID, db: Session = Depends(get_db)):
     return db_exam
 
 @app.post("/exams/", response_model=schemas.Exam)
-def create_exam(exam: schemas.ExamCreate, db: Session = Depends(get_db)):
-    return crud.create_exam(db=db, obj_in=exam)
+def create_exam(exam: schemas.ExamCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user),):
+    return crud.create_exam(db=db, obj_in=exam, user_id=current_user.id)
 
 @app.put("/exams/{exam_id}", response_model=schemas.Exam)
 def update_exam(exam_id: UUID, exam: schemas.ExamUpdate, db: Session = Depends(get_db)):
@@ -594,7 +594,7 @@ def delete_exam_event(event_id: UUID, db: Session = Depends(get_db)):
     return db_event
 
 # AuditLog routes
-@app.get("/audit-logs/", response_model=List[schemas.AuditLog], dependencies=[Depends(require_role(dbmodels.UserRole.ADMIN))])
+@app.get("/audit-logs/", response_model=List[schemas.AuditLog], dependencies=[Depends(require_role(dbmodels.UserRole.ADMIN, dbmodels.UserRole.TEACHER))])
 def read_audit_logs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     audit_logs = crud.get_audit_logs(db, skip=skip, limit=limit)
     return audit_logs
