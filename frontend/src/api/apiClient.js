@@ -57,7 +57,11 @@ api.interceptors.response.use(
       isRefreshing = true;
       try {
         const headers = csrfToken ? { "X-CSRF-Token": csrfToken } : {};
-        const res = await api.post("/auth/refresh", null, { headers });
+        // use raw axios to avoid interceptor loop
+        const res = await axios.post(`${API_BASE}/auth/refresh`, null, {
+          headers,
+          withCredentials: true,
+        });
         const newAccess = res.data.access_token;
         const newCsrf = res.data.csrf_token;
         setAccessToken(newAccess);
@@ -65,7 +69,7 @@ api.interceptors.response.use(
         onRefreshed(newAccess);
         return api(originalRequest);
       } catch (err) {
-        // refresh failed -> force logout in client (AuthProvider should listen)
+        // refresh failed -> force logout in client
         setAccessToken(null);
         setCsrfToken(null);
         return Promise.reject(err);

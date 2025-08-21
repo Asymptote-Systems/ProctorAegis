@@ -15,6 +15,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MoreHorizontal, Plus, Calendar, Users, BookOpen, Clock, Eye, Edit, Trash2, Download, LogOut, Settings, BarChart3, TrendingUp, AlertCircle } from "lucide-react";
 
+import LogoutButton from "./LogoutButton";
+
+
 // Mock data
 const dashboardStats = { activeExams: 3, totalStudents: 245, completedExams: 12, averageScore: 78.5 };
 const exams = [
@@ -86,7 +89,7 @@ export default function TeacherDashboard() {
             </div>
             <div className="flex items-center gap-4">
               <Button variant="outline" size="sm" className="gap-2"><Settings className="h-4 w-4" />Settings</Button>
-              <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2"><LogOut className="h-4 w-4" />Log Out</Button>
+              <LogoutButton />
             </div>
           </div>
         </div>

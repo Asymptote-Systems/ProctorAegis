@@ -1,12 +1,22 @@
-// frontend/src/auth/RequireAuth.jsx
-import React, { useContext } from "react";
+// FILE: src/auth/RequireAuth.jsx
+import { useContext } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 import { AuthContext } from "./AuthProvider";
-import { Navigate } from "react-router-dom";
 
 export default function RequireAuth({ children }) {
-  const { user } = useContext(AuthContext);
-  if (!user) {
-    return <Navigate to="/login" replace />;
+  const { user, loading } = useContext(AuthContext);
+  const location = useLocation();
+
+  // 🔄 Wait for AuthProvider to finish restoring session
+  if (loading) {
+    return <div>Loading...</div>; // or your spinner component
   }
+
+  if (!user) {
+    // redirect to login and preserve current path
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // ✅ render wrapped children
   return children;
 }
