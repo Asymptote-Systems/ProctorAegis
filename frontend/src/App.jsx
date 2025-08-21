@@ -4,8 +4,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 // Import all your page components
 import Login from './Login.jsx';
-import StudentPlatform from './StudentPlatform.jsx';
-import TeacherDashboard from './TeacherDashboard.jsx';
+import StudentPlatform from './studentPlatform.jsx';
+import TeacherDashboard from './teacherDashboard.jsx';
 import Page404 from './Page404.jsx';
 import APITest from './APITest.jsx'; // Keeping your original API Test route
 
