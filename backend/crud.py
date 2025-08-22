@@ -383,8 +383,8 @@ def get_exam_session(db: Session, id: UUID) -> Optional[models.ExamSession]:
 def get_exam_sessions(db: Session, skip: int = 0, limit: int = 100) -> List[models.ExamSession]:
     return db.query(models.ExamSession).offset(skip).limit(limit).all()
 
-def create_exam_session(db: Session, obj_in: schemas.ExamSessionCreate) -> models.ExamSession:
-    db_obj = models.ExamSession(**obj_in.dict())
+def create_exam_session(db: Session, obj_in: schemas.ExamSessionCreate, student_id: UUID) -> models.ExamSession:
+    db_obj = models.ExamSession(exam_id=obj_in.exam_id, student_id=student_id)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
@@ -413,8 +413,14 @@ def get_submission(db: Session, id: UUID) -> Optional[models.Submission]:
 def get_submissions(db: Session, skip: int = 0, limit: int = 100) -> List[models.Submission]:
     return db.query(models.Submission).offset(skip).limit(limit).all()
 
-def create_submission(db: Session, obj_in: schemas.SubmissionCreate) -> models.Submission:
-    db_obj = models.Submission(**obj_in.dict())
+def create_submission(db: Session, obj_in: schemas.SubmissionCreate, student_id: UUID) -> models.Submission:
+    # validate that exam_session belongs to this exam
+    exam_session = db.query(models.ExamSession).filter(models.ExamSession.id == obj_in.exam_session_id).first()
+    if not exam_session:
+        raise ValueError("Invalid exam_session_id")
+    if exam_session.exam_id != obj_in.exam_id:
+        raise ValueError("exam_id does not match the exam_id of the given exam_session")
+    db_obj = models.Submission(**obj_in.dict(exclude={"student_id"}), student_id=student_id,)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
@@ -442,6 +448,17 @@ def get_submission_result(db: Session, id: UUID) -> Optional[models.SubmissionRe
 
 def get_submission_results(db: Session, skip: int = 0, limit: int = 100) -> List[models.SubmissionResult]:
     return db.query(models.SubmissionResult).offset(skip).limit(limit).all()
+
+def get_submissions_by_exam_id(db: Session, exam_id: UUID, skip: int = 0, limit: int = 100) -> List[models.Submission]:
+    return (
+        db.query(models.Submission)
+        .join(models.ExamSession, models.Submission.exam_session_id == models.ExamSession.id)
+        .filter(models.ExamSession.exam_id == exam_id)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
 
 def create_submission_result(db: Session, obj_in: schemas.SubmissionResultCreate) -> models.SubmissionResult:
     db_obj = models.SubmissionResult(**obj_in.dict())

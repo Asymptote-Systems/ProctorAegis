@@ -4,14 +4,11 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from './auth/AuthProvider';
 import RequireAuth from './auth/RequireAuth';
 import RequireRole from './auth/RequireRole';
-import { Toaster } from "@/components/ui/sonner"; // For notifications
 
 // Import all your page components
 import Login from './Login.jsx';
-import StudentDashboard from './StudentDashboard.jsx';
 import StudentPlatform from './StudentPlatform.jsx';
 import TeacherDashboard from './TeacherDashboard.jsx';
-import ProfilesPage from './ProfilesPage.jsx'; // <-- 1. IMPORT THE NEW PAGE
 import Page404 from './Page404.jsx';
 import APITest from './APITest.jsx';
 import Forbidden from './Forbidden.jsx';
