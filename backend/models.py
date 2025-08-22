@@ -38,7 +38,7 @@ class ExamType(enum.Enum):
 
 class ExamStatus(enum.Enum):
     DRAFT = "draft"
-    PUBLISHED = "published"
+    SCHEDULED = "scheduled"
     ACTIVE = "active"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
