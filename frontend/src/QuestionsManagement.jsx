@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import HTMLEditor from './components/HTMLEditor';
 import { 
   Plus, 
   Edit, 
@@ -28,7 +29,8 @@ import {
   ArrowLeft,
   ArrowRight,
   TestTube,
-  Tag
+  Tag,
+  X
 } from "lucide-react";
 
 const API_BASE_URL = 'http://localhost:8000';
@@ -59,7 +61,6 @@ const apiCall = async (endpoint, options = {}) => {
   }
 };
 
-
 export default function QuestionsManagement() {
   // State management
   const [activeTab, setActiveTab] = useState("questions");
@@ -77,6 +78,7 @@ export default function QuestionsManagement() {
   const [isTestCaseDialogOpen, setIsTestCaseDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isEditorFullScreen, setIsEditorFullScreen] = useState(false);
   
   // Form states
   const [questionForm, setQuestionForm] = useState({
@@ -97,15 +99,14 @@ export default function QuestionsManagement() {
     extra_data: {}
   });
 
-// Update the testCaseForm state initialization - REPLACE THIS
-const [testCaseForm, setTestCaseForm] = useState({
-  input_data: '',
-  expected_output: '',
-  is_sample: false,
-  is_hidden: false,
-  extra_data: {},
-  question_id: ''
-});
+  const [testCaseForm, setTestCaseForm] = useState({
+    input_data: '',
+    expected_output: '',
+    is_sample: false,
+    is_hidden: false,
+    extra_data: {},
+    question_id: ''
+  });
 
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
@@ -117,6 +118,13 @@ const [testCaseForm, setTestCaseForm] = useState({
     loadQuestions();
     loadCategories();
   }, []);
+
+  // Auto-fullscreen when reaching step 2
+  useEffect(() => {
+    if (currentStep === 2) {
+      setIsEditorFullScreen(true);
+    }
+  }, [currentStep]);
 
   // Load questions from API
   const loadQuestions = async () => {
@@ -168,8 +176,11 @@ const [testCaseForm, setTestCaseForm] = useState({
       });
       
       await loadQuestions();
-      resetQuestionForm();
+      
+      // Close fullscreen immediately and reset everything
+      setIsEditorFullScreen(false);
       setIsQuestionDialogOpen(false);
+      resetQuestionForm();
     } catch (error) {
       console.error('Failed to save question:', error);
     } finally {
@@ -258,6 +269,7 @@ const [testCaseForm, setTestCaseForm] = useState({
     });
     setEditingQuestion(null);
     setCurrentStep(1);
+    setIsEditorFullScreen(false); // Reset fullscreen state
   };
 
   const resetCategoryForm = () => {
@@ -270,18 +282,16 @@ const [testCaseForm, setTestCaseForm] = useState({
     setEditingCategory(null);
   };
 
- // Update the resetTestCaseForm function - REPLACE THIS
-const resetTestCaseForm = () => {
-  setTestCaseForm({
-    input_data: '',
-    expected_output: '',
-    is_sample: false,
-    is_hidden: false,
-    extra_data: {},
-    question_id: selectedQuestionForTestCases || ''
-  });
-};
-
+  const resetTestCaseForm = () => {
+    setTestCaseForm({
+      input_data: '',
+      expected_output: '',
+      is_sample: false,
+      is_hidden: false,
+      extra_data: {},
+      question_id: selectedQuestionForTestCases || ''
+    });
+  };
 
   // Edit handlers
   const handleEditQuestion = (question) => {
@@ -309,6 +319,19 @@ const resetTestCaseForm = () => {
       extra_data: category.extra_data || {}
     });
     setIsCategoryDialogOpen(true);
+  };
+
+  // Close fullscreen editor and go back to main view
+  const handleCloseEditor = () => {
+    setIsEditorFullScreen(false);
+    setIsQuestionDialogOpen(false);
+    resetQuestionForm();
+  };
+
+  // Go back to step 1
+  const handleGoToPrevious = () => {
+    setCurrentStep(1);
+    setIsEditorFullScreen(false);
   };
 
   // Filter questions
@@ -474,27 +497,25 @@ const resetTestCaseForm = () => {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
-<Button
-  variant="ghost"
-  size="sm"
-  onClick={() => {
-    setSelectedQuestionForTestCases(question.id);
-    loadTestCases(question.id);
-    // Reset form with proper question_id
-    setTestCaseForm({
-      input_data: '',
-      expected_output: '',
-      is_sample: false,
-      is_hidden: false,
-      extra_data: {},
-      question_id: question.id
-    });
-    setIsTestCaseDialogOpen(true);
-  }}
->
-  <TestTube className="h-4 w-4" />
-</Button>
-
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedQuestionForTestCases(question.id);
+                                  loadTestCases(question.id);
+                                  setTestCaseForm({
+                                    input_data: '',
+                                    expected_output: '',
+                                    is_sample: false,
+                                    is_hidden: false,
+                                    extra_data: {},
+                                    question_id: question.id
+                                  });
+                                  setIsTestCaseDialogOpen(true);
+                                }}
+                              >
+                                <TestTube className="h-4 w-4" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -578,7 +599,7 @@ const resetTestCaseForm = () => {
                           {category.is_active ? "Active" : "Inactive"}
                         </Badge>
                         <span className="text-gray-500">
-                          {questions.filter(q => q.category_id === category.id).length} questions
+                          {((count) => `${count} question${count !== 1 ? 's' : ''}`)(questions.filter(q => q.category_id === category.id).length)}
                         </span>
                       </div>
                     </CardContent>
@@ -590,173 +611,139 @@ const resetTestCaseForm = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Question Create/Edit Dialog */}
-      <Dialog open={isQuestionDialogOpen} onOpenChange={setIsQuestionDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editingQuestion ? 'Edit Question' : 'Create New Question'}
-            </DialogTitle>
-            <DialogDescription>
-              Step {currentStep} of 2: {currentStep === 1 ? 'Basic Information' : 'Problem Statement'}
-            </DialogDescription>
-          </DialogHeader>
+      {/* Question Create/Edit Dialog - Only shown when not in fullscreen */}
+      {!isEditorFullScreen && (
+        <Dialog open={isQuestionDialogOpen} onOpenChange={setIsQuestionDialogOpen}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingQuestion ? 'Edit Question' : 'Create New Question'}
+              </DialogTitle>
+              <DialogDescription>
+                Step {currentStep} of 2: {currentStep === 1 ? 'Basic Information' : 'Problem Statement'}
+              </DialogDescription>
+            </DialogHeader>
 
-          {currentStep === 1 ? (
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4">
+            {currentStep === 1 && (
+              <div className="grid gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Title *</Label>
+                    <Input
+                      id="title"
+                      value={questionForm.title}
+                      onChange={(e) => setQuestionForm(prev => ({ ...prev, title: e.target.value }))}
+                      placeholder="Enter question title"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category *</Label>
+                    <Select
+                      value={questionForm.category_id}
+                      onValueChange={(value) => setQuestionForm(prev => ({ ...prev, category_id: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map(category => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="difficulty">Difficulty</Label>
+                    <Select
+                      value={questionForm.difficulty}
+                      onValueChange={(value) => setQuestionForm(prev => ({ ...prev, difficulty: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="easy">Easy</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="hard">Hard</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="maxScore">Max Score</Label>
+                    <Input
+                      id="maxScore"
+                      type="number"
+                      value={questionForm.max_score}
+                      onChange={(e) => setQuestionForm(prev => ({ ...prev, max_score: parseInt(e.target.value) || 0 }))}
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="title">Title *</Label>
-                  <Input
-                    id="title"
-                    value={questionForm.title}
-                    onChange={(e) => setQuestionForm(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="Enter question title"
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={questionForm.description}
+                    onChange={(e) => setQuestionForm(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Brief description of the question"
+                    rows={3}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category *</Label>
-                  <Select
-                    value={questionForm.category_id}
-                    onValueChange={(value) => setQuestionForm(prev => ({ ...prev, category_id: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map(category => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="difficulty">Difficulty</Label>
-                  <Select
-                    value={questionForm.difficulty}
-                    onValueChange={(value) => setQuestionForm(prev => ({ ...prev, difficulty: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="maxScore">Max Score</Label>
-                  <Input
-                    id="maxScore"
-                    type="number"
-                    value={questionForm.max_score}
-                    onChange={(e) => setQuestionForm(prev => ({ ...prev, max_score: parseInt(e.target.value) || 0 }))}
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="isActive"
+                    checked={questionForm.is_active}
+                    onCheckedChange={(checked) => setQuestionForm(prev => ({ ...prev, is_active: checked }))}
                   />
+                  <Label htmlFor="isActive">Active</Label>
                 </div>
               </div>
+            )}
 
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={questionForm.description}
-                  onChange={(e) => setQuestionForm(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Brief description of the question"
-                  rows={3}
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="isActive"
-                  checked={questionForm.is_active}
-                  onCheckedChange={(checked) => setQuestionForm(prev => ({ ...prev, is_active: checked }))}
-                />
-                <Label htmlFor="isActive">Active</Label>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-6 h-[60vh]">
-              {/* HTML Editor */}
-              <div className="space-y-2">
-                <Label htmlFor="problemStatement">Problem Statement (HTML)</Label>
-                <Textarea
-                  id="problemStatement"
-                  value={questionForm.problem_statement}
-                  onChange={(e) => setQuestionForm(prev => ({ ...prev, problem_statement: e.target.value }))}
-                  placeholder="Enter the problem statement using HTML"
-                  className="h-full font-mono text-sm"
-                  style={{ minHeight: '400px' }}
-                />
-                <div className="text-xs text-gray-500">
-                  Use HTML tags for formatting: &lt;h1&gt;, &lt;p&gt;, &lt;code&gt;, &lt;pre&gt;, &lt;ul&gt;, &lt;li&gt;, etc.
+            <DialogFooter>
+              <div className="flex justify-between w-full">
+                <div></div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setIsQuestionDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  {currentStep === 1 && (
+                    <Button 
+                      onClick={() => {
+                        setCurrentStep(2);
+                        setIsEditorFullScreen(true);
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      Next
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
-              {/* Preview */}
-              <div className="space-y-2">
-                <Label>Preview</Label>
-                <div 
-                  className="border rounded-md p-4 h-full overflow-auto bg-gray-50"
-                  style={{ minHeight: '400px' }}
-                >
-                  <div 
-                    dangerouslySetInnerHTML={{ __html: questionForm.problem_statement }}
-                    className="prose prose-sm max-w-none"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <div className="flex justify-between w-full">
-              <div>
-                {currentStep === 2 && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setCurrentStep(1)}
-                    className="flex items-center gap-2"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Previous
-                  </Button>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setIsQuestionDialogOpen(false)}>
-                  Cancel
-                </Button>
-                {currentStep === 1 ? (
-                  <Button 
-                    onClick={() => setCurrentStep(2)}
-                    className="flex items-center gap-2"
-                  >
-                    Next
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <Button 
-                    onClick={handleQuestionSubmit}
-                    disabled={loading}
-                    className="flex items-center gap-2"
-                  >
-                    <Save className="h-4 w-4" />
-                    {loading ? 'Saving...' : (editingQuestion ? 'Update' : 'Create')}
-                  </Button>
-                )}
-              </div>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Fullscreen HTMLEditor - Render separately when in fullscreen mode */}
+      {isEditorFullScreen && currentStep === 2 && (
+        <HTMLEditor
+          value={questionForm.problem_statement}
+          onChange={(value) => setQuestionForm(prev => ({ ...prev, problem_statement: value }))}
+          onSave={handleQuestionSubmit}
+          onClose={handleCloseEditor}
+          onPrevious={handleGoToPrevious}
+          loading={loading}
+          editingQuestion={editingQuestion}
+        />
+      )}
 
       {/* Category Create/Edit Dialog */}
       <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
@@ -814,134 +801,131 @@ const resetTestCaseForm = () => {
       </Dialog>
 
       {/* Test Cases Dialog */}
-      {/* Test Cases Dialog - REPLACE THIS ENTIRE SECTION */}
-<Dialog open={isTestCaseDialogOpen} onOpenChange={setIsTestCaseDialogOpen}>
-  <DialogContent className="max-w-4xl">
-    <DialogHeader>
-      <DialogTitle>Manage Test Cases</DialogTitle>
-      <DialogDescription>
-        Add and manage test cases for this question
-      </DialogDescription>
-    </DialogHeader>
+      <Dialog open={isTestCaseDialogOpen} onOpenChange={setIsTestCaseDialogOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Manage Test Cases</DialogTitle>
+            <DialogDescription>
+              Add and manage test cases for this question
+            </DialogDescription>
+          </DialogHeader>
 
-    <div className="space-y-4">
-      {/* Add Test Case Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Add New Test Case</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="inputData">Input Data</Label>
-              <Textarea
-                id="inputData"
-                value={testCaseForm.input_data}
-                onChange={(e) => setTestCaseForm(prev => ({ ...prev, input_data: e.target.value }))}
-                placeholder="Enter input data"
-                rows={4}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="expectedOutput">Expected Output</Label>
-              <Textarea
-                id="expectedOutput"
-                value={testCaseForm.expected_output}
-                onChange={(e) => setTestCaseForm(prev => ({ ...prev, expected_output: e.target.value }))}
-                placeholder="Enter expected output"
-                rows={4}
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-4 items-center">
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="isSample"
-                checked={testCaseForm.is_sample}
-                onCheckedChange={(checked) => setTestCaseForm(prev => ({ ...prev, is_sample: checked }))}
-              />
-              <Label htmlFor="isSample">Sample Test Case</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="isHidden"
-                checked={testCaseForm.is_hidden}
-                onCheckedChange={(checked) => setTestCaseForm(prev => ({ ...prev, is_hidden: checked }))}
-              />
-              <Label htmlFor="isHidden">Hidden from Students</Label>
-            </div>
-          </div>
-
-          <Button onClick={handleTestCaseSubmit} disabled={loading}>
-            Add Test Case
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Existing Test Cases */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Existing Test Cases</CardTitle>
-        </CardHeader>
-        <CardContent>
           <div className="space-y-4">
-            {testCases.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No test cases found</p>
-            ) : (
-              testCases.map((testCase, index) => (
-                <div key={testCase.id} className="border rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex gap-2">
-                      <Badge variant={testCase.is_sample ? "default" : "secondary"}>
-                        {testCase.is_sample ? "Sample" : "Test"} Case {index + 1}
-                      </Badge>
-                      {testCase.is_hidden && (
-                        <Badge variant="outline">Hidden</Badge>
-                      )}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setDeleteTarget({ type: 'testcase', id: testCase.id, name: `Test Case ${index + 1}` });
-                        setDeleteDialogOpen(true);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+            {/* Add Test Case Form */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Add New Test Case</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="inputData">Input Data</Label>
+                    <Textarea
+                      id="inputData"
+                      value={testCaseForm.input_data}
+                      onChange={(e) => setTestCaseForm(prev => ({ ...prev, input_data: e.target.value }))}
+                      placeholder="Enter input data"
+                      rows={4}
+                    />
                   </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <Label>Input:</Label>
-                      <pre className="bg-gray-100 p-2 rounded mt-1 overflow-x-auto">
-                        {testCase.input_data}
-                      </pre>
-                    </div>
-                    <div>
-                      <Label>Expected Output:</Label>
-                      <pre className="bg-gray-100 p-2 rounded mt-1 overflow-x-auto">
-                        {testCase.expected_output}
-                      </pre>
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="expectedOutput">Expected Output</Label>
+                    <Textarea
+                      id="expectedOutput"
+                      value={testCaseForm.expected_output}
+                      onChange={(e) => setTestCaseForm(prev => ({ ...prev, expected_output: e.target.value }))}
+                      placeholder="Enter expected output"
+                      rows={4}
+                    />
                   </div>
                 </div>
-              ))
-            )}
+
+                <div className="flex gap-4 items-center">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="isSample"
+                      checked={testCaseForm.is_sample}
+                      onCheckedChange={(checked) => setTestCaseForm(prev => ({ ...prev, is_sample: checked }))}
+                    />
+                    <Label htmlFor="isSample">Sample Test Case</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="isHidden"
+                      checked={testCaseForm.is_hidden}
+                      onCheckedChange={(checked) => setTestCaseForm(prev => ({ ...prev, is_hidden: checked }))}
+                    />
+                    <Label htmlFor="isHidden">Hidden from Students</Label>
+                  </div>
+                </div>
+
+                <Button onClick={handleTestCaseSubmit} disabled={loading}>
+                  Add Test Case
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Existing Test Cases */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Existing Test Cases</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {testCases.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">No test cases found</p>
+                  ) : (
+                    testCases.map((testCase, index) => (
+                      <div key={testCase.id} className="border rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex gap-2">
+                            <Badge variant={testCase.is_sample ? "default" : "secondary"}>
+                              {testCase.is_sample ? "Sample" : "Test"} Case {index + 1}
+                            </Badge>
+                            {testCase.is_hidden && (
+                              <Badge variant="outline">Hidden</Badge>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setDeleteTarget({ type: 'testcase', id: testCase.id, name: `Test Case ${index + 1}` });
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <Label>Input:</Label>
+                            <pre className="bg-gray-100 p-2 rounded mt-1 overflow-x-auto">
+                              {testCase.input_data}
+                            </pre>
+                          </div>
+                          <div>
+                            <Label>Expected Output:</Label>
+                            <pre className="bg-gray-100 p-2 rounded mt-1 overflow-x-auto">
+                              {testCase.expected_output}
+                            </pre>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
-    </div>
 
-    <DialogFooter>
-      <Button variant="outline" onClick={() => setIsTestCaseDialogOpen(false)}>
-        Close
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
-
-
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsTestCaseDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

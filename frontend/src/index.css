@@ -2,7 +2,6 @@
 @import "tw-animate-css";
 @import "@radix-ui/themes/styles.css";
 
-
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -116,7 +115,227 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Problem Statement Styling */
+  .problem-statement {
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.7;
+    color: #1f2937;
+    max-width: none;
+  }
+
+  .problem-statement h1,
+  .problem-statement h2,
+  .problem-statement h3,
+  .problem-statement h4 {
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .problem-statement h1 { font-size: 2rem; }
+  .problem-statement h2 { font-size: 1.5rem; }
+  .problem-statement h3 { font-size: 1.25rem; }
+  .problem-statement h4 { font-size: 1.1rem; }
+
+  .problem-statement p {
+    margin-bottom: 1rem;
+  }
+
+  .problem-statement ul,
+  .problem-statement ol {
+    margin: 1rem 0;
+    padding-left: 1.5rem;
+  }
+
+  .problem-statement li {
+    margin-bottom: 0.25rem;
+  }
+
+  .problem-statement code {
+    background-color: #f3f4f6;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    font-size: 0.875em;
+    color: #dc2626;
+  }
+
+  .problem-statement pre {
+    background-color: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    margin: 1rem 0;
+  }
+
+  .problem-statement .example-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  }
+
+  .problem-statement .example-table th,
+  .problem-statement .example-table td {
+    border: 1px solid #e5e7eb;
+    padding: 0.75rem 1rem;
+    text-align: left;
+  }
+
+  .problem-statement .example-table th {
+    background-color: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .problem-statement .example-table tr:nth-child(even) {
+    background-color: #fafafa;
+  }
+
+  .problem-statement blockquote {
+    border-left: 4px solid #3b82f6;
+    background-color: #eff6ff;
+    margin: 1rem 0;
+    padding: 1rem 1.5rem;
+    border-radius: 0 0.5rem 0.5rem 0;
+  }
+
+  .problem-statement .section {
+    margin: 2rem 0;
+    padding: 1rem;
+    background-color: #fafafa;
+    border-radius: 0.5rem;
+    border-left: 4px solid #10b981;
+  }
+
+  .problem-statement sup {
+    font-size: 0.75em;
+    vertical-align: super;
+  }
+
+  .problem-statement sub {
+    font-size: 0.75em;
+    vertical-align: sub;
+  }
+
+  /* Math expressions */
+  .problem-statement .math {
+    font-family: 'Times New Roman', serif;
+    font-style: italic;
+  }
+
+  /* Table styling for problem statements */
+  .problem-statement table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  }
+
+  .problem-statement table th,
+  .problem-statement table td {
+    border: 1px solid #e5e7eb;
+    padding: 0.75rem 1rem;
+    text-align: left;
+  }
+
+  .problem-statement table th {
+    background-color: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .problem-statement table tr:nth-child(even) {
+    background-color: #fafafa;
+  }
+
+  /* Additional styling for better readability */
+  .problem-statement strong {
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .problem-statement em {
+    font-style: italic;
+    color: #4b5563;
+  }
+
+  .problem-statement hr {
+    border: none;
+    height: 1px;
+    background-color: #e5e7eb;
+    margin: 2rem 0;
+  }
+
+  /* Responsive design */
+  @media (max-width: 768px) {
+    .problem-statement .example-table {
+      font-size: 0.875rem;
+    }
+    
+    .problem-statement pre {
+      font-size: 0.75rem;
+      padding: 0.75rem;
+    }
+
+    .problem-statement h1 { font-size: 1.75rem; }
+    .problem-statement h2 { font-size: 1.375rem; }
+    .problem-statement h3 { font-size: 1.125rem; }
+    .problem-statement h4 { font-size: 1rem; }
+  }
+
+  /* Dark mode support for problem statements */
+  .dark .problem-statement {
+    color: #e5e7eb;
+  }
+
+  .dark .problem-statement h1,
+  .dark .problem-statement h2,
+  .dark .problem-statement h3,
+  .dark .problem-statement h4 {
+    color: #f9fafb;
+  }
+
+  .dark .problem-statement code {
+    background-color: #374151;
+    color: #fbbf24;
+  }
+
+  .dark .problem-statement pre {
+    background-color: #1f2937;
+    border-color: #374151;
+    color: #e5e7eb;
+  }
+
+  .dark .problem-statement .example-table th,
+  .dark .problem-statement table th {
+    background-color: #374151;
+    color: #f9fafb;
+  }
+
+  .dark .problem-statement .example-table th,
+  .dark .problem-statement .example-table td,
+  .dark .problem-statement table th,
+  .dark .problem-statement table td {
+    border-color: #4b5563;
+  }
+
+  .dark .problem-statement .example-table tr:nth-child(even),
+  .dark .problem-statement table tr:nth-child(even) {
+    background-color: #1f2937;
   }
 }
