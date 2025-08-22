@@ -13,9 +13,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Progress } from "@/components/ui/progress";
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreHorizontal, Plus, Calendar, Users, BookOpen, Clock, Eye, Edit, Trash2, Download, LogOut, Settings, BarChart3, TrendingUp, AlertCircle } from "lucide-react";
+import { MoreHorizontal, Plus, Calendar, Users, BookOpen, Clock, Eye, Edit, Trash2, Download, LogOut, Settings, BarChart3, TrendingUp, AlertCircle, BookOpenCheck } from "lucide-react";
 
 import LogoutButton from "./LogoutButton";
+import QuestionsManagement from "./QuestionsManagement";
 
 
 // Mock data
@@ -97,11 +98,12 @@ export default function TeacherDashboard() {
 
       <div className="container mx-auto p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="dashboard" className="gap-2"><BarChart3 className="h-4 w-4" />Dashboard</TabsTrigger>
             <TabsTrigger value="create-exam" className="gap-2"><Plus className="h-4 w-4" />Create Exam</TabsTrigger>
             <TabsTrigger value="exams" className="gap-2"><BookOpen className="h-4 w-4" />All Exams</TabsTrigger>
             <TabsTrigger value="analytics" className="gap-2"><BarChart3 className="h-4 w-4" />Analytics</TabsTrigger>
+            <TabsTrigger value="questions" className="gap-2"><BookOpenCheck className="h-4 w-4" />Questions</TabsTrigger>
           </TabsList>
 
           {/* Dashboard Tab */}
@@ -188,6 +190,9 @@ export default function TeacherDashboard() {
               <CardHeader><CardTitle>Exam Performance Analysis</CardTitle><CardDescription>Detailed breakdown of exam results</CardDescription></CardHeader>
               <CardContent><div className="space-y-6">{analyticsData.examPerformance.map((exam, index) => (<div key={index} className="space-y-2"><div className="flex items-center justify-between"><span className="font-medium">{exam.exam}</span><span className="text-sm text-muted-foreground">Score: {exam.averageScore}% | Participation: {exam.participationRate}%</span></div><div className="grid gap-2 md:grid-cols-2"><div className="space-y-1"><div className="flex justify-between"><span className="text-xs">Average Score</span><span className="text-xs">{exam.averageScore}%</span></div><Progress value={exam.averageScore} className="h-2" /></div><div className="space-y-1"><div className="flex justify-between"><span className="text-xs">Participation Rate</span><span className="text-xs">{exam.participationRate}%</span></div><Progress value={exam.participationRate} className="h-2" /></div></div></div>))}</div></CardContent>
             </Card>
+          </TabsContent>
+          <TabsContent value="questions">
+            <QuestionsManagement />
           </TabsContent>
         </Tabs>
 

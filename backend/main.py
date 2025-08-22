@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 from backend.database import Base, engine, get_db, SessionLocal
 from backend import crud, schemas
 from backend.wait_for_db import wait_for_db
-from backend.settings import settings
 from backend.auth.router import router as auth_router
 
 from backend.auth.dependencies import require_role, get_current_user
@@ -284,7 +283,7 @@ def delete_question_category(category_id: UUID, db: Session = Depends(get_db)):
     return db_category
 
 # Question routes
-@app.get("/questions/", response_model=List[schemas.Question])
+@app.get("/questions/", response_model=List[schemas.Question], dependencies=[Depends(require_role(dbmodels.UserRole.ADMIN, dbmodels.UserRole.TEACHER))])
 def read_questions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     questions = crud.get_questions(db, skip=skip, limit=limit)
     return questions
