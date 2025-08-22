@@ -405,7 +405,6 @@ class SubmissionBase(BaseModel):
 
 class SubmissionCreate(SubmissionBase):
     exam_id: UUID
-    exam_session_id: UUID
     question_id: UUID
 
 class SubmissionUpdate(BaseModel):

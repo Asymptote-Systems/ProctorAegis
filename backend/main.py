@@ -483,7 +483,17 @@ def read_submission(submission_id: UUID, db: Session = Depends(get_db)):
 
 @app.post("/submissions/", response_model=schemas.Submission)
 def create_submission(submission: schemas.SubmissionCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user),):
-    return crud.create_submission(db=db, obj_in=submission, student_id=current_user.id)
+    # Find the exam session for this user & exam
+    exam_session = db.query(models.ExamSession).filter_by(
+        exam_id=submission.exam_id,
+        student_id=current_user.id
+    ).first()
+
+    if not exam_session:
+        raise HTTPException(status_code=400, detail="No active exam session found for this exam")
+
+    
+    return crud.create_submission(db=db, obj_in=submission, student_id=current_user.id, exam_session_id=exam_session.id)
 
 @app.put("/submissions/{submission_id}", response_model=schemas.Submission)
 def update_submission(submission_id: UUID, submission: schemas.SubmissionUpdate, db: Session = Depends(get_db)):

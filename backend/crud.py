@@ -413,14 +413,14 @@ def get_submission(db: Session, id: UUID) -> Optional[models.Submission]:
 def get_submissions(db: Session, skip: int = 0, limit: int = 100) -> List[models.Submission]:
     return db.query(models.Submission).offset(skip).limit(limit).all()
 
-def create_submission(db: Session, obj_in: schemas.SubmissionCreate, student_id: UUID) -> models.Submission:
+def create_submission(db: Session, obj_in: schemas.SubmissionCreate, student_id: UUID, exam_session_id: UUID) -> models.Submission:
     # validate that exam_session belongs to this exam
     exam_session = db.query(models.ExamSession).filter(models.ExamSession.id == obj_in.exam_session_id).first()
     if not exam_session:
         raise ValueError("Invalid exam_session_id")
     if exam_session.exam_id != obj_in.exam_id:
         raise ValueError("exam_id does not match the exam_id of the given exam_session")
-    db_obj = models.Submission(**obj_in.dict(exclude={"student_id"}), student_id=student_id,)
+    db_obj = models.Submission(**obj_in.dict(exclude={"exam_session_id", "student_id"}), student_id=student_id, exam_session_id=exam_session_id)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
