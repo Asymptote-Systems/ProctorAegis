@@ -677,6 +677,32 @@ def get_student_questions_with_details(
         )
     return questions
 
+@app.get(
+    "/exams/{exam_id}/students/{student_id}/questions-with-details/",
+    response_model=List[schemas.StudentExamQuestionWithQuestion]
+)
+def get_questions_for_specific_student(
+    exam_id: UUID,
+    student_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)  # whoever is logged in
+):
+    """Get questions assigned to a specific student in a given exam (for teachers/admins)."""
+    # 🔹 (Optional) Add role check so only staff can use this
+    if current_user.role != "teacher":  
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    questions = crud.get_exam_questions_for_student(
+        db, student_id=student_id, exam_id=exam_id
+    )
+
+    if not questions:
+        raise HTTPException(
+            status_code=404,
+            detail="No questions found for this student in this exam"
+        )
+    return questions
+
 # Assign a single question to a student
 @app.post("/exams/{exam_id}/students/{student_id}/assign-question/", response_model=schemas.StudentExamQuestion)
 def assign_question_to_student(
