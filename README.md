@@ -46,12 +46,12 @@ ProctorAegis transforms online coding examinations with military-grade security 
 <td width="50%">
 
 ### 👨‍🏫 **Teacher Power Tools**
-- 📤 **One-Click Excel Uploads** - Students & questions in seconds
 - 🎲 **Smart Question Randomization** - Prevent cheating adjacent seats
 - ⏰ **Flexible Scheduling** - Set exam windows precisely  
 - 🔧 **Question Bank Management** - User-friendly CRUD interface
 - 📊 **Rich Analytics Dashboard** - Deep insights & exportable reports
 - 🔑 **Auto-Password Generation** - Secure student credentials
+- 👥 **Student Management** - Add and manage students directly
 
 </td>
 <td width="50%">
@@ -67,56 +67,6 @@ ProctorAegis transforms online coding examinations with military-grade security 
 </td>
 </tr>
 </table>
-
----
-
-## 🏗️ Architecture Overview
-
-<div align="center">
-
-```mermaid
-graph TB
-    subgraph "Frontend Layer"
-        A[React + ShadCN UI]
-        B[CodeMirror Editor]
-        C[Zustand State]
-    end
-    
-    subgraph "Backend Layer"
-        D[FastAPI Server]
-        E[JWT Authentication]
-        F[Celery Workers]
-    end
-    
-    subgraph "Data Layer"
-        G[PostgreSQL]
-        H[Judge0 Engine]
-        I[File Storage]
-    end
-    
-    subgraph "Security Layer"
-        J[SEB Integration]
-        K[Rate Limiting]
-        L[Audit Logging]
-    end
-    
-    A --> D
-    B --> D
-    C --> D
-    D --> G
-    D --> H
-    F --> H
-    D --> J
-    D --> K
-    D --> L
-    
-    style A fill:#61dafb
-    style D fill:#009688
-    style G fill:#336791
-    style H fill:#ff6b35
-```
-
-</div>
 
 ---
 
@@ -365,9 +315,9 @@ gantt
 
 <div align="center">
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 </div>
 
