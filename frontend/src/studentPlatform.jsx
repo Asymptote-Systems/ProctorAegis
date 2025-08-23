@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Clock, Play, Square, FileCheck, AlertTriangle, Save, CheckCircle, Moon, Sun } from 'lucide-react';
+import { Clock, FileCheck, AlertTriangle, Save, CheckCircle, Moon, Sun } from 'lucide-react';
 import Editor from "@monaco-editor/react";
 import { toast } from "sonner";
-
+import { useParams } from 'react-router-dom';
 // Shadcn UI Components
 import { 
   ResizableHandle, 
@@ -45,50 +45,6 @@ const THEME_STORAGE_KEY = "student_exam_theme";
 const AUTO_SAVE_INTERVAL = 3000; // 3 seconds
 const SAVE_DEBOUNCE_DELAY = 1000; // 1 second
 
-// Mock exam data - Replace this with API call to fetch exam data
-const examData = {
-  id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", // Mock exam ID
-  title: "Data Structures & Algorithms Final Exam",
-  duration: 120, // minutes
-  totalQuestions: 5,
-  currentQuestion: 1,
-  questions: [
-    {
-      id: "3fa85f64-5717-4562-b3fc-2c963f66afa6", // Mock question ID
-      title: "Reverse a Linked List",
-      difficulty: "Medium",
-      description: "Write a function to reverse a singly linked list iteratively.",
-      example: `Input: [1,2,3,4,5]
-Output: [5,4,3,2,1]
-
-Explanation: The linked list is reversed.`,
-      testCases: [
-        { input: "[1,2,3]", output: "[3,2,1]" },
-        { input: "[1,2]", output: "[2,1]" },
-        { input: "[]", output: "[]" }
-      ]
-    },
-    {
-      id: "4fa85f64-5717-4562-b3fc-2c963f66afa7", // Mock question ID
-      title: "Binary Tree Traversal",
-      difficulty: "Easy",
-      description: "Implement inorder traversal of a binary tree.",
-      example: `Input: [1,null,2,3]
-Output: [1,3,2]`,
-      testCases: []
-    },
-    {
-      id: "5fa85f64-5717-4562-b3fc-2c963f66afa8", // Mock question ID
-      title: "Find the Kth Largest Element",
-      difficulty: "Medium",
-      description: "Given an array, find the Kth largest element in it.",
-      example: `Input: [3,2,1,5,6,4], K = 2
-Output: 5`,
-      testCases: []
-    }
-  ]
-};
-
 // Mock student ID - In a real app, this would come from authentication
 const STUDENT_ID = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
 
@@ -117,41 +73,38 @@ const Student_UI = () => {
 
   const persisted = loadPersistedState();
 
+  // State for dynamically fetched exam data
+  const [examData, setExamData] = useState(null);
+  const [fetchError, setFetchError] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
   // State management
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(persisted.currentQuestionIndex || 0);
   const [code, setCode] = useState(persisted.code || '');
   const [language, setLanguage] = useState(persisted.language || 'javascript');
   const [timeLeft, setTimeLeft] = useState(persisted.timeLeft || 5400); // 90 minutes fallback
-  const [isRunning, setIsRunning] = useState(false);
-  const [testResults, setTestResults] = useState('');
   const [savedAnswers, setSavedAnswers] = useState(persisted.savedAnswers || {});
   const [submittedAnswers, setSubmittedAnswers] = useState(persisted.submittedAnswers || {});
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
-  
+
   // Theme state
   const [theme, setTheme] = useState(loadThemePreference());
-  
+
   // Auto-save related state
   const [autoSaveStatus, setAutoSaveStatus] = useState('idle'); // 'idle', 'saving', 'saved', 'error'
   const [lastSavedTime, setLastSavedTime] = useState(persisted.lastSavedTime || Date.now());
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  
+
   // Exam session state
   const [examSessionId] = useState(persisted.examSessionId || generateUUID());
   const [attemptNumbers, setAttemptNumbers] = useState(persisted.attemptNumbers || {});
-  
+
   // Refs for debouncing and intervals
   const autoSaveIntervalRef = useRef(null);
   const saveTimeoutRef = useRef(null);
   const lastCodeRef = useRef(code);
-
-  const currentQuestion = examData.questions[currentQuestionIndex];
-
-  // Check if current question is submitted (read-only)
-  const isCurrentQuestionSubmitted = submittedAnswers.hasOwnProperty(currentQuestion.id);
-  const isCurrentQuestionReadOnly = isCurrentQuestionSubmitted;
-
-  // Generate a UUID for exam session and submissions
+  const { examId } = useParams();
+  // Generate UUID
   function generateUUID() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
       const r = Math.random() * 16 | 0;
@@ -160,7 +113,7 @@ const Student_UI = () => {
     });
   }
 
-  // Enhanced persistence with error handling
+  // Persist state
   const persistState = useCallback((state) => {
     try {
       const stateToSave = {
@@ -200,7 +153,7 @@ const Student_UI = () => {
     saveThemePreference(newTheme);
   };
 
-  // Apply theme to document
+  // Apply theme
   useEffect(() => {
     const root = window.document.documentElement;
     if (theme === 'dark') {
@@ -210,36 +163,127 @@ const Student_UI = () => {
     }
   }, [theme]);
 
-  // Auto-save function with improved error handling (skip if read-only)
-  const performAutoSave = useCallback(async () => {
-    if (!hasUnsavedChanges || isCurrentQuestionReadOnly) return;
+  // Fetch exam data from API
+  useEffect(() => {
+    async function fetchExamData() {
+      try {
+        setIsLoading(true);
+        const token = localStorage.getItem('access_token');
+        
+        if (!token) {
+          setFetchError('No access token found. Please login.');
+          setIsLoading(false);
+          return;
+        }
+
+        const response = await fetch(`http://localhost:8000/exams/${examId}/questions-with-details/`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+
+        if (!response.ok) {
+          const message = `Failed to fetch exam questions: ${response.status} ${response.statusText}`;
+          setFetchError(message);
+          setIsLoading(false);
+          return;
+        }
+
+        const data = await response.json();
+
+        // Map response to examData format expected
+        const questions = data.map((q, index) => {
+          const questionDetail = q.question;
+
+          return {
+            id: questionDetail.id,
+            title: questionDetail.title || "Untitled Question",
+            difficulty: questionDetail.difficulty ? 
+              questionDetail.difficulty.charAt(0).toUpperCase() + questionDetail.difficulty.slice(1) : 
+              "Easy",
+            description: questionDetail.description || "",
+            problem_statement: questionDetail.problem_statement || "",
+            example: extractExampleFromProblemStatement(questionDetail.problem_statement) || "",
+            testCases: [], // no test cases info from API
+            points: q.points || 1,
+            order: q.question_order || index
+          };
+        });
+
+        // Sort questions by order
+        questions.sort((a, b) => a.order - b.order);
+
+        setExamData({
+          id: 'e394cbe9-ba85-42f1-a576-7675229063cf',
+          title: 'Programming Exam',
+          duration: 120, // fallback duration in minutes
+          totalQuestions: questions.length,
+          currentQuestion: 0,
+          questions: questions
+        });
+        
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Failed to fetch exam data:', error);
+        setFetchError('Failed to fetch exam questions. Please check your connection and try again.');
+        setIsLoading(false);
+      }
+    }
+
+    fetchExamData();
+  }, []);
+
+  // Helper to extract example from problem_statement HTML string
+  function extractExampleFromProblemStatement(html) {
+    if (!html) return "";
     
+    try {
+      // Try to extract content between <h3>Example</h3> and <pre> tags
+      const exampleMatch = html.match(/<h3>Example<\/h3>\s*<pre[^>]*>([\s\S]*?)<\/pre>/i);
+      if (exampleMatch) {
+        return exampleMatch[1].trim();
+      }
+      
+      // Alternative: look for any <pre> tag content
+      const preMatch = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+      if (preMatch) {
+        return preMatch[1].trim();
+      }
+      
+      return "";
+    } catch (error) {
+      console.warn('Error extracting example:', error);
+      return "";
+    }
+  }
+
+  // Auto-save function
+  const performAutoSave = useCallback(async () => {
+    if (!hasUnsavedChanges || !examData) return;
+
     setAutoSaveStatus('saving');
     
     try {
-      // Update saved answers with current code
+      const currentQuestion = examData.questions[currentQuestionIndex];
       const updatedSavedAnswers = {
         ...savedAnswers,
-        [currentQuestion.id]: code
+        [currentQuestion?.id]: code
       };
-      
       setSavedAnswers(updatedSavedAnswers);
-      
-      // Persist to localStorage
+
       const success = persistState({
         savedAnswers: updatedSavedAnswers,
         lastSavedTime: Date.now()
       });
-      
+
       if (success) {
         setAutoSaveStatus('saved');
         setLastSavedTime(Date.now());
         setHasUnsavedChanges(false);
-        
-        // TODO: Replace with actual API call for backend persistence
-        // await saveToBackend(currentQuestion.id, code, language);
-        
-        // Reset status after showing success briefly
+
         setTimeout(() => setAutoSaveStatus('idle'), 2000);
       }
     } catch (error) {
@@ -247,21 +291,20 @@ const Student_UI = () => {
       setAutoSaveStatus('error');
       setTimeout(() => setAutoSaveStatus('idle'), 3000);
     }
-  }, [code, currentQuestion.id, savedAnswers, hasUnsavedChanges, persistState, isCurrentQuestionReadOnly]);
+  }, [code, currentQuestionIndex, savedAnswers, hasUnsavedChanges, persistState, examData]);
 
-  // Debounced save function
+  // Debounced auto save
   const debouncedAutoSave = useCallback(() => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    
     saveTimeoutRef.current = setTimeout(performAutoSave, SAVE_DEBOUNCE_DELAY);
   }, [performAutoSave]);
 
-  // Set up auto-save interval
+  // Set auto-save interval
   useEffect(() => {
     autoSaveIntervalRef.current = setInterval(() => {
-      if (hasUnsavedChanges && !isCurrentQuestionReadOnly) {
+      if (hasUnsavedChanges && examData) {
         performAutoSave();
       }
     }, AUTO_SAVE_INTERVAL);
@@ -271,26 +314,28 @@ const Student_UI = () => {
         clearInterval(autoSaveIntervalRef.current);
       }
     };
-  }, [performAutoSave, hasUnsavedChanges, isCurrentQuestionReadOnly]);
+  }, [performAutoSave, hasUnsavedChanges, examData]);
 
-  // Track code changes for auto-save (only if not read-only)
+  // Track code change for auto-save
   useEffect(() => {
-    if (!isCurrentQuestionReadOnly && lastCodeRef.current !== code) {
+    if (lastCodeRef.current !== code) {
       setHasUnsavedChanges(true);
       lastCodeRef.current = code;
       debouncedAutoSave();
     }
-  }, [code, debouncedAutoSave, isCurrentQuestionReadOnly]);
+  }, [code, debouncedAutoSave]);
 
   // Persist state on any change
   useEffect(() => {
-    persistState();
-  }, [persistState]);
+    if (examData) {
+      persistState();
+    }
+  }, [persistState, examData]);
 
-  // Handle browser close/refresh
+  // Handle browser unload
   useEffect(() => {
     const handleBeforeUnload = (e) => {
-      if (hasUnsavedChanges && !isCurrentQuestionReadOnly) {
+      if (hasUnsavedChanges) {
         performAutoSave();
         e.preventDefault();
         e.returnValue = '';
@@ -299,15 +344,12 @@ const Student_UI = () => {
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasUnsavedChanges, performAutoSave, isCurrentQuestionReadOnly]);
+  }, [hasUnsavedChanges, performAutoSave]);
 
-  const handleResetDemo = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    window.location.reload();
-  };
-
-  // Timer countdown effect
+  // Timer countdown
   useEffect(() => {
+    if (!examData) return;
+    
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -319,10 +361,15 @@ const Student_UI = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [examData]);
 
   // Load saved answer when question changes
   useEffect(() => {
+    if (!examData) return;
+    
+    const currentQuestion = examData.questions[currentQuestionIndex];
+    if (!currentQuestion) return;
+    
     const savedCode = savedAnswers[currentQuestion.id];
     if (savedCode !== undefined) {
       setCode(savedCode);
@@ -331,147 +378,62 @@ const Student_UI = () => {
       setCode(getStarterCode(language));
       setHasUnsavedChanges(false);
     }
-  }, [currentQuestionIndex, savedAnswers, currentQuestion.id]);
+  }, [currentQuestionIndex, savedAnswers, examData, language]);
 
-  // Update code when language changes (only if not read-only)
+  // Update code when language changes
   useEffect(() => {
-    if (!savedAnswers[currentQuestion.id] && !isCurrentQuestionReadOnly) {
+    if (!examData) return;
+    
+    const currentQuestion = examData.questions[currentQuestionIndex];
+    if (!currentQuestion) return;
+
+    if (!savedAnswers[currentQuestion.id]) {
       setCode(getStarterCode(language));
       setHasUnsavedChanges(false);
     }
-  }, [language, currentQuestion.id, savedAnswers, isCurrentQuestionReadOnly]);
+  }, [language, currentQuestionIndex, savedAnswers, examData]);
 
-  // API Integration Points
-  const handleRunCode = async () => {
-    if (isCurrentQuestionReadOnly) return;
-    
-    setIsRunning(true);
-    setTestResults('Running tests...');
-
-    // Mock implementation - Replace when connecting to backend
-    setTimeout(() => {
-      const results = `✅ Test Case 1: Passed
-✅ Test Case 2: Passed
-❌ Test Case 3: Failed
-Expected: [3,2,1], Got: [1,2,3]
-
-2/3 test cases passed.`;
-      setTestResults(results);
-      setIsRunning(false);
-    }, 2000);
-  };
-
-  // Manual save function (disabled if read-only)
-  const handleSaveCode = async () => {
-    if (isCurrentQuestionReadOnly) return;
-    await performAutoSave();
-  };
-
-  // Prepare submission data for a single question
-  const prepareSubmissionData = (questionId, code, language) => {
-    const attemptNumber = (attemptNumbers[questionId] || 0) + 1;
-    
-    return {
-      source_code: code,
-      language: language,
-      status: "pending",
-      attempt_number: attemptNumber,
-      extra_data: {
-        timestamp: new Date().toISOString(),
-        question_title: currentQuestion.title
-      },
-      exam_session_id: examSessionId,
-      question_id: questionId,
-      student_id: STUDENT_ID
-    };
-  };
-
-  // Submit answer function
+  // Handle submit answer
   const handleSubmitAnswer = async () => {
-    if (isCurrentQuestionReadOnly) return;
+    if (!examData) return;
     
     await performAutoSave();
     
-    // Prepare submission data
-    const submissionData = prepareSubmissionData(currentQuestion.id, code, language);
-    
-    // Update attempt numbers
-    const updatedAttemptNumbers = {
-      ...attemptNumbers,
-      [currentQuestion.id]: submissionData.attempt_number
-    };
-    setAttemptNumbers(updatedAttemptNumbers);
-    persistState({ attemptNumbers: updatedAttemptNumbers });
-    
-    // Update submitted answers
+    const currentQuestion = examData.questions[currentQuestionIndex];
+    if (!currentQuestion) return;
+
     const updatedSubmittedAnswers = {
       ...submittedAnswers,
       [currentQuestion.id]: code
     };
     setSubmittedAnswers(updatedSubmittedAnswers);
     persistState({ submittedAnswers: updatedSubmittedAnswers });
-    
-    // Log submission data to console (for now)
-    console.log("Question Submission:", submissionData);
-    
-    // Show success message with sonner
+
     toast.success("Answer Submitted", {
       description: `Your answer for "${currentQuestion.title}" has been submitted successfully.`,
     });
   };
 
-  // Submit entire exam
+  // Handle submit full exam
   const handleSubmitExam = async () => {
     await performAutoSave();
-    
-    // Prepare all submission data
-    const allSubmissions = [];
-    
-    // Add all submitted answers
-    Object.entries(submittedAnswers).forEach(([questionId, code]) => {
-      const question = examData.questions.find(q => q.id === questionId);
-      if (question) {
-        const submissionData = prepareSubmissionData(
-          questionId, 
-          code, 
-          language
-        );
-        allSubmissions.push(submissionData);
-      }
-    });
-    
-    // Add current answer if not already submitted
-    if (!submittedAnswers[currentQuestion.id]) {
-      const submissionData = prepareSubmissionData(
-        currentQuestion.id, 
-        code, 
-        language
-      );
-      allSubmissions.push(submissionData);
-    }
-    
-    // Log all submission data to console
-    console.log("Final Exam Submissions:", allSubmissions);
-    
-    // Clear persisted data
+
     localStorage.removeItem(STORAGE_KEY);
-    
-    // Show success message with sonner
+
     toast.success("Exam Submitted Successfully", {
       description: "Your exam has been submitted. You will be redirected to the results page.",
     });
-    
-    // Navigate to results page
+
     navigate('/student/results');
   };
 
-  // Mock navigation function for demo
+  // Mock navigate
   const navigate = (path) => {
     console.log(`Navigating to: ${path}`);
     alert(`Demo: Would navigate to ${path}`);
   };
 
-  // Utility functions
+  // Format time
   const formatTime = (seconds) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -485,6 +447,7 @@ Expected: [3,2,1], Got: [1,2,3]
     return 'text-green-500';
   };
 
+  // Navigation handlers
   const handleNextQuestion = async () => {
     await performAutoSave();
     if (currentQuestionIndex < examData.questions.length - 1) {
@@ -504,6 +467,7 @@ Expected: [3,2,1], Got: [1,2,3]
   };
 
   const getCompletionPercentage = () => {
+    if (!examData) return 0;
     return (getAnsweredQuestionsCount() / examData.questions.length) * 100;
   };
 
@@ -529,8 +493,6 @@ Expected: [3,2,1], Got: [1,2,3]
 
   // Auto-save badge component
   const getAutoSaveBadge = () => {
-    if (isCurrentQuestionReadOnly) return null;
-    
     const badges = {
       idle: null,
       saving: (
@@ -567,6 +529,48 @@ Expected: [3,2,1], Got: [1,2,3]
     };
   }, []);
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-background text-foreground">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-lg">Loading exam questions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (fetchError) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-background text-foreground">
+        <div className="text-center max-w-md p-6">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold mb-2">Failed to Load Exam</h2>
+          <p className="text-red-600 mb-4">{fetchError}</p>
+          <Button onClick={() => window.location.reload()}>
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!examData || !examData.questions.length) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-background text-foreground">
+        <div className="text-center">
+          <p className="text-lg">No exam questions available.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const currentQuestion = examData.questions[currentQuestionIndex];
+  const isCurrentQuestionSubmitted = submittedAnswers.hasOwnProperty(currentQuestion.id);
+  const isCurrentQuestionReadOnly = isCurrentQuestionSubmitted;
+
   return (
     <div className="h-screen w-screen flex flex-col bg-background text-foreground">
       {/* Header Section */}
@@ -599,9 +603,6 @@ Expected: [3,2,1], Got: [1,2,3]
             <span className={`font-mono text-lg font-bold ${getTimeColor()}`}>
               {formatTime(timeLeft)}
             </span>
-            <Button variant="outline" onClick={handleResetDemo}>
-                Reset Demo
-            </Button>
           </div>
           
           {/* Progress Indicator */}
@@ -669,15 +670,29 @@ Expected: [3,2,1], Got: [1,2,3]
                 <CardContent className="space-y-4">
                   {/* Question Description */}
                   <div>
-                    <p className="mb-4">{currentQuestion.description}</p>
+                    {currentQuestion.description && (
+                      <div className="mb-4">
+                        <p>{currentQuestion.description}</p>
+                      </div>
+                    )}
                     
+                    {/* Problem Statement as HTML */}
+                    {currentQuestion.problem_statement && (
+                      <div 
+                        className="mb-4 prose dark:prose-invert max-w-none"
+                        dangerouslySetInnerHTML={{ __html: currentQuestion.problem_statement }} 
+                      />
+                    )}
+
                     {/* Example Section */}
-                    <div className="bg-muted p-4 rounded-lg">
-                      <strong>Example:</strong>
-                      <pre className="mt-2 whitespace-pre-wrap text-sm">
-                        {currentQuestion.example}
-                      </pre>
-                    </div>
+                    {currentQuestion.example && (
+                      <div className="bg-muted p-4 rounded-lg">
+                        <strong>Example:</strong>
+                        <pre className="mt-2 whitespace-pre-wrap text-sm">
+                          {currentQuestion.example}
+                        </pre>
+                      </div>
+                    )}
                   </div>
 
                   {/* Question Navigation */}
@@ -775,51 +790,33 @@ Expected: [3,2,1], Got: [1,2,3]
                 }}
               />
 
-              {/* Test Results Display */}
-              {testResults && (
-                <div className="bg-muted p-3 rounded-lg max-h-32 overflow-auto">
-                  <Label className="text-sm font-medium">Test Results:</Label>
-                  <pre className="text-xs mt-1 whitespace-pre-wrap">{testResults}</pre>
-                </div>
-              )}
-
-              {/* Action Buttons */}
+              {/* Action Buttons - Removed Reset Demo and Run Code */}
               <div className="flex justify-between gap-2 p-2 border-t">
                 <Button 
                   variant="outline" 
-                  onClick={handleSaveCode}
+                  onClick={performAutoSave}
                   disabled={autoSaveStatus === 'saving' || isCurrentQuestionReadOnly}
                 >
                   {autoSaveStatus === 'saving' ? 'Saving...' : 'Save Code'}
                 </Button>
-                <div className="flex gap-2">
+                
+                {isCurrentQuestionReadOnly ? (
                   <Button 
-                    variant="outline" 
-                    onClick={handleRunCode}
-                    disabled={isRunning || isCurrentQuestionReadOnly}
+                    disabled
+                    className="gap-2 opacity-50 cursor-not-allowed"
+                  >
+                    <FileCheck className="h-4 w-4" />
+                    Already Submitted
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={handleSubmitAnswer}
                     className="gap-2"
                   >
-                    {isRunning ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                    {isRunning ? 'Running...' : 'Run Code'}
+                    <FileCheck className="h-4 w-4" />
+                    Submit Answer
                   </Button>
-                  {isCurrentQuestionReadOnly ? (
-                    <Button 
-                      disabled
-                      className="gap-2 opacity-50 cursor-not-allowed"
-                    >
-                      <FileCheck className="h-4 w-4" />
-                      Already Submitted
-                    </Button>
-                  ) : (
-                    <Button 
-                      onClick={handleSubmitAnswer}
-                      className="gap-2"
-                    >
-                      <FileCheck className="h-4 w-4" />
-                      Submit Answer
-                    </Button>
-                  )}
-                </div>
+                )}
               </div>
             </div>
           </ResizablePanel>

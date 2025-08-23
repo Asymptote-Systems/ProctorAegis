@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreHorizontal, Plus, Calendar, Users, BookOpen, Clock, Eye, Edit, Trash2, Download, LogOut, Settings, BarChart3, TrendingUp, AlertCircle, RefreshCw, FileQuestion, PlusCircle, Search, UserPlus, UserCheck, Info, CheckCircle2, PlayCircle, PauseCircle, StopCircle, BookOpenCheck } from "lucide-react";
+import { MoreHorizontal, Plus, Calendar, Users, BookOpen, Clock, Eye, Edit, Trash2, Download, LogOut, Settings, BarChart3, TrendingUp, AlertCircle, RefreshCw, FileQuestion, PlusCircle, Search, UserPlus, UserCheck, Info, CheckCircle2, PlayCircle, PauseCircle, StopCircle, BookOpenCheck, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 
 // Import your auth context and api client (adjust paths as needed)
@@ -95,6 +95,14 @@ export default function TeacherDashboard() {
 
   // New state for status change management
   const [changingStatus, setChangingStatus] = useState(false);
+
+  // NEW: State for questions per student and student question assignments
+  const [questionsPerStudent, setQuestionsPerStudent] = useState(5); // Default value
+  const [studentQuestionAssignments, setStudentQuestionAssignments] = useState({}); // student assignments by exam ID
+  const [viewAssignmentsDialogOpen, setViewAssignmentsDialogOpen] = useState(false);
+  const [currentExamForAssignments, setCurrentExamForAssignments] = useState(null);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+  const [assigningStudentQuestions, setAssigningStudentQuestions] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -201,21 +209,222 @@ export default function TeacherDashboard() {
         { key: 'delete', label: 'Delete Exam', icon: Trash2, handler: () => setDeleteExamId(exam.id), className: 'text-red-600' }
       ],
       scheduled: [
+        { key: 'view-assignments', label: 'View Student Assignments', icon: ListChecks, handler: () => handleViewStudentAssignments(exam) },
         { key: 'enroll-students', label: 'Enroll Students', icon: UserPlus, handler: () => handleOpenEnrollmentDialog(exam) },
         { key: 'view-questions', label: 'View Questions', icon: FileQuestion, handler: () => handleViewQuestions(exam) },
         { key: 'edit', label: 'Edit Exam', icon: Edit, handler: () => handleEditExam(exam) },
         { key: 'delete', label: 'Delete Exam', icon: Trash2, handler: () => setDeleteExamId(exam.id), className: 'text-red-600' }
       ],
       ongoing: [ // "On-Going" status
+        { key: 'view-assignments', label: 'View Student Assignments', icon: ListChecks, handler: () => handleViewStudentAssignments(exam) },
         { key: 'view-questions', label: 'View Questions', icon: FileQuestion, handler: () => handleViewQuestions(exam) }
       ],
       completed: [
+        { key: 'view-assignments', label: 'View Student Assignments', icon: ListChecks, handler: () => handleViewStudentAssignments(exam) },
         { key: 'view-questions', label: 'View Questions', icon: FileQuestion, handler: () => handleViewQuestions(exam) },
         { key: 'view-results', label: 'View Results', icon: Eye, handler: () => handleViewResults(exam.id) }
       ]
     };
 
     return actions[exam.status] || [];
+  };
+
+  // NEW: Function to shuffle array (Fisher-Yates shuffle)
+  const shuffleArray = (array) => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
+  // FIXED: Function to assign questions randomly to all enrolled students using bulk assignment endpoint
+  const assignQuestionsToStudents = async (examId) => {
+    setAssigningStudentQuestions(true);
+    try {
+      const examQuestionsList = examQuestions[examId] || [];
+      const enrolledStudents = examRegistrations[examId] || [];
+      
+      if (examQuestionsList.length === 0) {
+        toast.error("No questions assigned to exam", {
+          description: "Please assign questions to the exam first before setting it to scheduled.",
+        });
+        return false;
+      }
+      
+      if (enrolledStudents.length === 0) {
+        toast.error("No students enrolled", {
+          description: "Please enroll students in the exam first before setting it to scheduled.",
+        });
+        return false;
+      }
+
+      const exam = exams.find(e => e.id === examId);
+      const questionsPerStudentCount = exam?.extra_data?.questions_per_student || questionsPerStudent;
+      
+      if (questionsPerStudentCount > examQuestionsList.length) {
+        toast.error("Not enough questions", {
+          description: `Exam has ${examQuestionsList.length} questions but needs ${questionsPerStudentCount} per student.`,
+        });
+        return false;
+      }
+
+      // Get all available question IDs from the exam questions
+      const availableQuestionIds = examQuestionsList.map(eq => eq.question_id);
+      const assignments = [];
+      
+      for (const registration of enrolledStudents) {
+        const studentId = registration.student_id;
+        
+        // Randomly select questions for this student
+        const shuffledQuestions = shuffleArray(availableQuestionIds);
+        const selectedQuestions = shuffledQuestions.slice(0, questionsPerStudentCount);
+        
+        // Create assignment objects for this student
+        selectedQuestions.forEach((questionId, index) => {
+          assignments.push({
+            exam_id: String(examId), // Ensure string format for UUID
+            student_id: String(studentId), // Ensure string format for UUID
+            question_id: String(questionId), // Ensure string format for UUID
+            question_order: index, // Sequential order per student
+            points: 1 // Default points
+          });
+        });
+      }
+
+      console.log('Bulk assignment payload:', { assignments }); // Debug log
+
+      // Get access token for authorization
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        toast.error("Authentication required", {
+          description: "Please log in again.",
+        });
+        logout();
+        return false;
+      }
+
+      // Make bulk assignment request using the correct endpoint
+      const response = await api.post('/student-exam-questions/bulk-assign/', {
+        assignments: assignments
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Bulk assignment response:', response.data); // Debug log
+      
+      toast.success("Questions assigned to students!", {
+        description: `Successfully assigned ${questionsPerStudentCount} random questions to ${enrolledStudents.length} students.`,
+      });
+      
+      return true;
+      
+    } catch (error) {
+      console.error('Error assigning questions to students:', error);
+      console.error('Error response data:', error.response?.data); // Debug log
+      
+      if (error.response?.status === 401) {
+        toast.error("Authentication failed", {
+          description: "Your session has expired. Please log in again.",
+        });
+        logout();
+        return false;
+      }
+      
+      // Show detailed error message from backend
+      let errorMessage = "An error occurred while assigning questions to students.";
+      if (error.response?.data?.detail) {
+        if (typeof error.response.data.detail === 'string') {
+          errorMessage = error.response.data.detail;
+        } else if (Array.isArray(error.response.data.detail)) {
+          // Handle validation error array
+          errorMessage = error.response.data.detail.map(err => 
+            `${err.loc?.join('.')} - ${err.msg}`
+          ).join('; ');
+        }
+      }
+      
+      toast.error("Failed to assign questions to students", {
+        description: errorMessage,
+      });
+      return false;
+    } finally {
+      setAssigningStudentQuestions(false);
+    }
+  };
+
+  // FIXED: Function to fetch student question assignments for an exam using the correct endpoint
+  const fetchStudentQuestionAssignments = async (examId) => {
+    setLoadingAssignments(true);
+    try {
+      // Get access token from localStorage
+      const token = localStorage.getItem('access_token');
+      
+      if (!token) {
+        toast.error("Authentication required", {
+          description: "Please log in again.",
+        });
+        logout();
+        return {};
+      }
+
+      // Use the correct endpoint format: /exams/{exam_id}/questions-with-details/
+      const response = await api.get(`/exams/${examId}/questions-with-details/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Raw API response for assignments:', response.data); // Debug log
+      
+      // Group assignments by student ID
+      const assignmentsByStudent = {};
+      response.data.forEach(assignment => {
+        const studentId = assignment.student_id;
+        if (!assignmentsByStudent[studentId]) {
+          assignmentsByStudent[studentId] = [];
+        }
+        assignmentsByStudent[studentId].push(assignment);
+      });
+
+      console.log('Grouped assignments by student:', assignmentsByStudent); // Debug log
+
+      setStudentQuestionAssignments(prev => ({
+        ...prev,
+        [examId]: assignmentsByStudent
+      }));
+
+      return assignmentsByStudent;
+    } catch (error) {
+      console.error('Error fetching student question assignments:', error);
+      if (error.response?.status === 401) {
+        toast.error("Authentication failed", {
+          description: "Your session has expired. Please log in again.",
+        });
+        logout();
+        return {};
+      }
+      toast.error("Failed to fetch student assignments", {
+        description: error.response?.data?.detail || "Unable to load student question assignments.",
+      });
+      return {};
+    } finally {
+      setLoadingAssignments(false);
+    }
+  };
+
+  // NEW: Handler to open student assignments view dialog
+  const handleViewStudentAssignments = async (exam) => {
+    setCurrentExamForAssignments(exam);
+    setViewAssignmentsDialogOpen(true);
+    
+    // Fetch student assignments
+    await fetchStudentQuestionAssignments(exam.id);
   };
 
   // Fetch exams from API
@@ -285,7 +494,7 @@ export default function TeacherDashboard() {
     }
   };
 
-  // Fetch exam-specific questions
+  // FIXED: Fetch exam-specific questions - using correct endpoint
   const fetchExamQuestions = async (examId) => {
     try {
       const response = await api.get('/exam-questions/?skip=0&limit=100');
@@ -333,11 +542,21 @@ export default function TeacherDashboard() {
     }
   };
 
-  // Handle status change
+  // MODIFIED: Handle status change with automatic question assignment
   const handleStatusChange = async (examId, newStatus) => {
     setChangingStatus(true);
     try {
       const exam = exams.find(e => e.id === examId);
+      
+      // If changing to "scheduled", assign questions to students first
+      if (newStatus === 'scheduled' && exam.status !== 'scheduled') {
+        const success = await assignQuestionsToStudents(examId);
+        if (!success) {
+          setChangingStatus(false);
+          return; // Don't update status if assignment failed
+        }
+      }
+      
       const updatedExam = {
         ...exam,
         status: newStatus
@@ -371,7 +590,7 @@ export default function TeacherDashboard() {
     }
   };
 
-  // Handle question assignment
+  // FIXED: Handle question assignment to exam (not students)
   const handleAssignQuestions = async (examId, questionIds) => {
     setAssigningQuestions(true);
     try {
@@ -500,7 +719,7 @@ export default function TeacherDashboard() {
     }
   };
 
-  // Open question assignment dialog
+  // MODIFIED: Open question assignment dialog with questions per student input
   const handleOpenQuestionDialog = async (exam) => {
     setCurrentExamForQuestions(exam);
     setQuestionDialogOpen(true);
@@ -508,6 +727,10 @@ export default function TeacherDashboard() {
     // Reset filters and search
     setQuestionSearchTerm('');
     setDifficultyFilter('all');
+    
+    // Set questions per student from exam data or default
+    const examQuestionsPerStudent = exam?.extra_data?.questions_per_student || 5;
+    setQuestionsPerStudent(examQuestionsPerStudent);
     
     // Fetch questions if not already loaded
     if (questions.length === 0) {
@@ -858,7 +1081,15 @@ export default function TeacherDashboard() {
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    // Handle timezone offset to prevent date shifting
+    const timezoneOffset = date.getTimezoneOffset() * 60000;
+    const adjustedDate = new Date(date.getTime() + timezoneOffset);
+    
+    return adjustedDate.toLocaleDateString() + ' ' + adjustedDate.toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
   };
 
   // Show loading spinner while checking authentication
@@ -1347,7 +1578,20 @@ export default function TeacherDashboard() {
                               </TableCell>
                               <TableCell className="py-4">
                                 <div className="flex items-center justify-center gap-1">
-                                  {/* Enroll Students - Always first */}
+                                  {/* View Student Assignments - First for scheduled, ongoing, completed */}
+                                  {(exam.status === 'scheduled' || exam.status === 'ongoing' || exam.status === 'completed') && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleViewStudentAssignments(exam)}
+                                      className="h-9 w-9 p-0"
+                                      title="View Student Assignments"
+                                    >
+                                      <ListChecks className="h-4 w-4 text-indigo-600" />
+                                    </Button>
+                                  )}
+
+                                  {/* Enroll Students - Always second */}
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -1358,7 +1602,7 @@ export default function TeacherDashboard() {
                                     <UserPlus className={`h-4 w-4 ${enrollmentStatus.isEnrolled ? 'text-green-600' : 'text-gray-400'}`} />
                                   </Button>
 
-                                  {/* Assign Questions - Always second */}
+                                  {/* Assign Questions - Always third */}
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -1369,7 +1613,7 @@ export default function TeacherDashboard() {
                                     <FileQuestion className={`h-4 w-4 ${questionStatus.isAssigned ? 'text-green-600' : 'text-gray-400'}`} />
                                   </Button>
 
-                                  {/* Edit Exam - Third, for draft and scheduled exams only */}
+                                  {/* Edit Exam - Fourth, for draft and scheduled exams only */}
                                   {(exam.status === 'draft' || exam.status === 'scheduled') && (
                                     <Button
                                       variant="ghost"
@@ -1531,7 +1775,7 @@ export default function TeacherDashboard() {
           </TabsContent>
         </Tabs>
 
-        {/* Enhanced Question Assignment Dialog */}
+        {/* MODIFIED: Enhanced Question Assignment Dialog with Questions Per Student */}
         <Dialog open={questionDialogOpen} onOpenChange={setQuestionDialogOpen}>
           <DialogContent className="max-w-5xl max-h-[85vh]">
             <DialogHeader>
@@ -1545,6 +1789,31 @@ export default function TeacherDashboard() {
             </DialogHeader>
             
             <div className="space-y-6">
+              {/* Questions Per Student Input */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                <div className="flex items-center gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="questions-per-student" className="text-sm font-medium">
+                      Questions Per Student *
+                    </Label>
+                    <Input
+                      id="questions-per-student"
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={questionsPerStudent}
+                      onChange={(e) => setQuestionsPerStudent(parseInt(e.target.value) || 1)}
+                      className="w-24"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      When this exam is set to <strong>Scheduled</strong>, each enrolled student will automatically receive <strong>{questionsPerStudent}</strong> randomly selected questions from the assigned questions pool.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Search and Filter Controls */}
               <div className="flex gap-4 items-end">
                 <div className="flex-1 space-y-2">
@@ -1759,6 +2028,25 @@ export default function TeacherDashboard() {
                 </Button>
                 <Button
                   onClick={() => {
+                    // Update exam with questions per student setting
+                    if (currentExamForQuestions) {
+                      const exam = exams.find(e => e.id === currentExamForQuestions.id);
+                      const updatedExam = {
+                        ...exam,
+                        extra_data: {
+                          ...exam.extra_data,
+                          questions_per_student: questionsPerStudent
+                        }
+                      };
+                      
+                      // Update exam first, then assign questions
+                      api.put(`/exams/${currentExamForQuestions.id}`, updatedExam).then(() => {
+                        setExams(prevExams => prevExams.map(exam => 
+                          exam.id === currentExamForQuestions.id ? updatedExam : exam
+                        ));
+                      });
+                    }
+                    
                     const questionsToAssign = Array.from(selectedQuestions).filter(qId => 
                       !examQuestions[currentExamForQuestions?.id]?.some(eq => eq.question_id === qId)
                     );
@@ -2027,22 +2315,197 @@ export default function TeacherDashboard() {
           </DialogContent>
         </Dialog>
 
+        {/* NEW: Student Question Assignments View Dialog */}
+        <Dialog open={viewAssignmentsDialogOpen} onOpenChange={setViewAssignmentsDialogOpen}>
+          <DialogContent className="max-w-6xl max-h-[85vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ListChecks className="h-5 w-5" />
+                Student Question Assignments for "{currentExamForAssignments?.title}"
+              </DialogTitle>
+              <DialogDescription>
+                View the randomly assigned questions for each enrolled student.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-6">
+              {loadingAssignments ? (
+                <div className="flex items-center justify-center py-12">
+                  <Clock className="h-8 w-8 animate-spin mr-3" />
+                  <span className="text-lg">Loading student assignments...</span>
+                </div>
+              ) : (
+                <ScrollArea className="h-[500px]">
+                  <div className="space-y-6">
+                    {currentExamForAssignments && examRegistrations[currentExamForAssignments.id]?.map((registration) => {
+                      const student = students.find(s => s.id === registration.student_id);
+                      const assignments = studentQuestionAssignments[currentExamForAssignments.id]?.[registration.student_id] || [];
+                      
+                      return (
+                        <Card key={registration.id} className="border-2">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-lg flex items-center gap-2">
+                                <UserCheck className="h-5 w-5 text-green-600" />
+                                {student?.email || `Student ${registration.student_id.slice(0, 8)}...`}
+                              </CardTitle>
+                              <div className="flex gap-2">
+                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                  {assignments.length} questions
+                                </Badge>
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                  {registration.status}
+                                </Badge>
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="pt-0">
+                            {assignments.length === 0 ? (
+                              <div className="text-center py-6 text-muted-foreground">
+                                <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                                <p className="text-sm">No questions assigned to this student yet.</p>
+                                <p className="text-xs">Questions will be assigned when exam status is set to "Scheduled".</p>
+                              </div>
+                            ) : (
+                              <div className="grid gap-3">
+                                {assignments
+                                  .sort((a, b) => a.question_order - b.question_order)
+                                  .map((assignment, index) => (
+                                  <div
+                                    key={assignment.id}
+                                    className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="flex-1">
+                                        <div className="flex items-start gap-3 mb-2">
+                                          <Badge variant="outline" className="mt-1 text-xs px-2 py-1">
+                                            Q{assignment.question_order + 1}
+                                          </Badge>
+                                          <div className="flex-1">
+                                            <h4 className="font-medium text-sm line-clamp-1">
+                                              {assignment.question?.title || 'Untitled Question'}
+                                            </h4>
+                                            {assignment.question?.description && (
+                                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                                {assignment.question.description}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-4 text-xs text-muted-foreground ml-16">
+                                          {assignment.question?.difficulty && (
+                                            <span className="inline-flex">
+                                              {getDifficultyBadge(assignment.question.difficulty)}
+                                            </span>
+                                          )}
+                                          {assignment.question?.difficulty && (
+                                            <span className="inline-flex">
+                                              {getDifficultyBadge(assignment.question.difficulty)}
+                                            </span>
+                                          )}
+                                          <span>Points: {assignment.points}</span>
+                                          <span>Max Score: {assignment.question?.max_score || 0}</span>
+                                          <span>Time: {assignment.question?.time_limit_seconds || 30}s</span>
+                                          {assignment.question?.problem_statement && (
+                                            <span>Has Problem Statement</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+              
+              {/* Action buttons for reassigning questions */}
+              {currentExamForAssignments && (
+                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Info className="h-4 w-4" />
+                      <span>
+                        Questions per student: {currentExamForAssignments.extra_data?.questions_per_student || 5}
+                      </span>
+                    </div>
+                    <p className="text-xs mt-1">
+                      Total enrolled: {examRegistrations[currentExamForAssignments.id]?.length || 0} students
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchStudentQuestionAssignments(currentExamForAssignments.id)}
+                      disabled={loadingAssignments}
+                      className="gap-2"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${loadingAssignments ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                    {currentExamForAssignments.status === 'draft' && (
+                      <Button
+                        size="sm"
+                        onClick={() => assignQuestionsToStudents(currentExamForAssignments.id)}
+                        disabled={assigningStudentQuestions}
+                        className="gap-2"
+                      >
+                        {assigningStudentQuestions ? (
+                          <>
+                            <Clock className="h-4 w-4 animate-spin" />
+                            Reassigning...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-4 w-4" />
+                            Reassign Questions
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setViewAssignmentsDialogOpen(false)}
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={!!deleteExamId} onOpenChange={() => setDeleteExamId(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Trash2 className="h-5 w-5 text-red-600" />
+                Delete Exam
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the exam and all associated student data.
+                Are you sure you want to delete this exam? This action cannot be undone. 
+                All associated questions, student enrollments, and results will be permanently removed.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={() => deleteExamId && handleDeleteExam(deleteExamId)} 
-                className="bg-destructive hover:bg-destructive/90"
+              <AlertDialogAction
+                onClick={() => handleDeleteExam(deleteExamId)}
+                className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
               >
-                Delete
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Exam
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
