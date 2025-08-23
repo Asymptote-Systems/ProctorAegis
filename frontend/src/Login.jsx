@@ -52,7 +52,7 @@ export default function Login() {
       // Navigate based on user role (from result.user or context.user)
       navigate(
         result.user?.role === "student"
-          ? "/student/platform"
+          ? "/student/dashboard"
           : "/teacher/dashboard"
       );
     } catch (err) {
