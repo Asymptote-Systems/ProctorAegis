@@ -106,6 +106,8 @@ class User(Base):
     created_exams = relationship("Exam", foreign_keys="Exam.created_by", back_populates="creator", cascade="all, delete-orphan")
     approved_registrations = relationship("ExamRegistration", foreign_keys="ExamRegistration.approved_by", back_populates="approver")
     
+    assigned_questions = relationship("StudentExamQuestion", back_populates="student")
+
     __table_args__ = (
         Index("idx_users_email", "email"),
         Index("idx_users_role", "role"),
@@ -171,7 +173,6 @@ class StudentProfile(Base):
     
     # Relationships
     user = relationship("User", back_populates="student_profile")
-    assigned_questions = relationship("StudentExamQuestion", back_populates="student")
     
     __table_args__ = (
         Index("idx_student_profiles_user_id", "user_id"),
@@ -183,7 +184,7 @@ class StudentExamQuestion(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     exam_id = Column(UUID(as_uuid=True), ForeignKey("exams.id"), nullable=False)
-    student_id = Column(UUID(as_uuid=True), ForeignKey("student_profiles.id"), nullable=False)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id"), nullable=False)
     question_order = Column(Integer, nullable=False)
     points = Column(Integer, default=0, nullable=False)
@@ -193,7 +194,7 @@ class StudentExamQuestion(Base):
     extra_data = Column(JSONB, default=dict)
 
     # Relationships
-    student = relationship("StudentProfile", back_populates="assigned_questions")
+    student = relationship("User", back_populates="assigned_questions")
     exam = relationship("Exam", back_populates="assigned_questions")
     question = relationship("Question", back_populates="assigned_students")
 
@@ -393,7 +394,7 @@ class ExamSession(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     exam_id = Column(UUID(as_uuid=True), ForeignKey("exams.id"), nullable=False)
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    session_token = Column(String(255), unique=True, nullable=False)
+    session_token = Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False)
     started_at = Column(DateTime(timezone=True))
     ended_at = Column(DateTime(timezone=True))
     last_activity_at = Column(DateTime(timezone=True))

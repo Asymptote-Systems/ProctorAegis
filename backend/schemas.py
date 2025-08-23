@@ -3,10 +3,10 @@ Pydantic schemas for Online Exam System
 Generated from SQLAlchemy models
 """
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 from .models import (
     UserRole, Difficulty, ExamType, ExamStatus, RegistrationStatus, 
     SessionStatus, SubmissionStatus, ExecutionStatus, EventType
@@ -40,7 +40,7 @@ class User(UserBase):
 
 # UserSession schemas
 class UserSessionBase(BaseModel):
-    session_token: str
+    #session_token: str
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     expires_at: datetime
@@ -50,7 +50,7 @@ class UserSessionCreate(UserSessionBase):
     user_id: UUID
 
 class UserSessionUpdate(BaseModel):
-    session_token: Optional[str] = None
+    #session_token: Optional[str] = None
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     expires_at: Optional[datetime] = None
@@ -363,7 +363,7 @@ class ExamRegistration(ExamRegistrationBase):
 
 # ExamSession schemas
 class ExamSessionBase(BaseModel):
-    session_token: str
+    #session_token: UUID
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
     last_activity_at: Optional[datetime] = None
@@ -376,7 +376,6 @@ class ExamSessionCreate(ExamSessionBase):
     exam_id: UUID
 
 class ExamSessionUpdate(BaseModel):
-    session_token: Optional[str] = None
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
     last_activity_at: Optional[datetime] = None

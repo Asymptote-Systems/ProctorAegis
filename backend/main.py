@@ -706,20 +706,21 @@ def bulk_assign_questions(
         raise HTTPException(status_code=400, detail=f"Error in bulk assignment: {str(e)}")
 
 # Get all exams where a specific student has assigned questions
-@app.get("/me/assigned-exams/", response_model=List[schemas.StudentExamQuestion])
-def get_my_assigned_exams(
+@app.get("/me/registered-exams/", response_model=List[schemas.ExamRegistration])
+def get_my_registered_exams(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)  # 👈 auto-inject logged-in user
+    current_user: models.User = Depends(get_current_user)  # 👈 logged-in student
 ):
-    """Get all exams where the logged-in student has assigned questions"""
-    assignments = db.query(models.StudentExamQuestion).filter(
-        models.StudentExamQuestion.student_id == current_user.id
+    """Get all exams the logged-in student is registered for"""
+    registrations = db.query(models.ExamRegistration).filter(
+        models.ExamRegistration.student_id == current_user.id
     ).all()
 
-    if not assignments:
-        raise HTTPException(status_code=404, detail="No exam assignments found for this student")
-    
-    return assignments
+    if not registrations:
+        raise HTTPException(status_code=404, detail="No exam registrations found for this student")
+
+    return registrations
+
 
 @app.get("/students/{student_id}/assigned-exams/", response_model=List[schemas.StudentExamQuestion])
 def get_student_assigned_exams_admin(student_id: UUID, db: Session = Depends(get_db)):
