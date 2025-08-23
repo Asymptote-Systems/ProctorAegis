@@ -69,6 +69,18 @@ function App() {
               </RequireAuth>
             }
           />
+          
+         {/* Protected Student Routes */}
+          <Route
+            path="/student/dashboard"
+            element={
+              <RequireAuth>
+                <RequireRole roles={["student"]}>
+                  <StudentDashboard />
+                </RequireRole>
+              </RequireAuth>
+            }
+          />
 
           {/* --- 2. ADD THE NEW ROUTE FOR THE PROFILES PAGE --- */}
           {/* <Route 
