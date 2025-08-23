@@ -25,7 +25,7 @@ function App() {
           <Route path="/api" element={<APITest />} />
 
           {/* Protected Student Routes */}
-          <Route 
+          {/* <Route 
             path="/student/dashboard" 
             element={
               <RequireAuth>
@@ -34,7 +34,7 @@ function App() {
                 </RequireRole>
               </RequireAuth>
             } 
-          />
+          /> */}
           <Route 
             path="/student/platform/:examId" 
             element={
@@ -59,7 +59,7 @@ function App() {
           />
           
           {/* --- 2. ADD THE NEW ROUTE FOR THE PROFILES PAGE --- */}
-          <Route 
+          {/* <Route 
             path="/profiles" 
             element={
               <RequireAuth>
@@ -68,13 +68,12 @@ function App() {
                 </RequireRole>
               </RequireAuth>
             } 
-          />
+          /> */}
 
           {/* Error pages */}
           <Route path="/403" element={<Forbidden />} />
           <Route path="*" element={<Page404 />} />
         </Routes>
-        <Toaster />
       </>
     </AuthProvider>
   );
