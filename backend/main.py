@@ -679,7 +679,8 @@ def get_student_questions_with_details(
 
 @app.get(
     "/exams/{exam_id}/students/{student_id}/questions-with-details/",
-    response_model=List[schemas.StudentExamQuestionWithQuestion]
+    response_model=List[schemas.StudentExamQuestionWithQuestion],
+    dependencies=[Depends(require_role(dbmodels.UserRole.ADMIN, dbmodels.UserRole.TEACHER))]
 )
 def get_questions_for_specific_student(
     exam_id: UUID,
@@ -688,10 +689,6 @@ def get_questions_for_specific_student(
     current_user: models.User = Depends(get_current_user)  # whoever is logged in
 ):
     """Get questions assigned to a specific student in a given exam (for teachers/admins)."""
-    # 🔹 (Optional) Add role check so only staff can use this
-    if current_user.role != "teacher":  
-        raise HTTPException(status_code=403, detail="Not authorized")
-
     questions = crud.get_exam_questions_for_student(
         db, student_id=student_id, exam_id=exam_id
     )
