@@ -1318,11 +1318,6 @@ export default function TeacherDashboard() {
                                   <Badge variant={questionStatus.isAssigned ? "default" : "secondary"}>
                                     {questionStatus.count}
                                   </Badge>
-                                  <span className="text-xs text-muted-foreground">
-                                    {questionStatus.count === 0 ? 'None' : 
-                                     questionStatus.count === 1 ? '1 question' : 
-                                     `${questionStatus.count} questions`}
-                                  </span>
                                 </div>
                               </TableCell>
                               <TableCell className="py-4 text-center">
@@ -1330,11 +1325,6 @@ export default function TeacherDashboard() {
                                   <Badge variant={enrollmentStatus.isEnrolled ? "default" : "secondary"}>
                                     {enrollmentStatus.count}
                                   </Badge>
-                                  <span className="text-xs text-muted-foreground">
-                                    {enrollmentStatus.count === 0 ? 'None' : 
-                                     enrollmentStatus.count === 1 ? '1 student' : 
-                                     `${enrollmentStatus.count} students`}
-                                  </span>
                                 </div>
                               </TableCell>
                               <TableCell className="py-4 text-sm text-muted-foreground">
