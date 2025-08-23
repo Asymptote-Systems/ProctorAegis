@@ -374,7 +374,6 @@ class ExamSessionBase(BaseModel):
 
 class ExamSessionCreate(ExamSessionBase):
     exam_id: UUID
-    student_id: UUID
 
 class ExamSessionUpdate(BaseModel):
     session_token: Optional[str] = None
@@ -405,9 +404,8 @@ class SubmissionBase(BaseModel):
     extra_data: Optional[Dict[str, Any]] = {}
 
 class SubmissionCreate(SubmissionBase):
-    exam_session_id: UUID
+    exam_id: UUID
     question_id: UUID
-    student_id: UUID
 
 class SubmissionUpdate(BaseModel):
     source_code: Optional[str] = None
@@ -418,6 +416,7 @@ class SubmissionUpdate(BaseModel):
 
 class Submission(SubmissionBase):
     id: UUID
+    exam_id: UUID
     exam_session_id: UUID
     question_id: UUID
     student_id: UUID

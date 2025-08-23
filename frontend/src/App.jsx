@@ -16,36 +16,65 @@ import Forbidden from './Forbidden.jsx';
 function App() {
   return (
     <AuthProvider>
-      <Routes>
-        {/* Route to automatically redirect the user from the base URL "/" to "/login" */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
+      <>
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
 
-        {/* Public routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/api" element={<APITest />} />
+          {/* Public routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/api" element={<APITest />} />
 
-        {/* Protected routes - Student access only */}
-        <Route path="/student/platform" element={
-          <RequireAuth>
-            <RequireRole roles={["student"]}>
-              <StudentPlatform />
-            </RequireRole>
-          </RequireAuth>
-        } />
+          {/* Protected Student Routes */}
+          {/* <Route 
+            path="/student/dashboard" 
+            element={
+              <RequireAuth>
+                <RequireRole roles={["student"]}>
+                  <StudentDashboard />
+                </RequireRole>
+              </RequireAuth>
+            } 
+          /> */}
+          <Route 
+            path="/student/platform/:examId" 
+            element={
+              <RequireAuth>
+                <RequireRole roles={["student"]}>
+                  <StudentPlatform />
+                </RequireRole>
+              </RequireAuth>
+            } 
+          />
 
-        {/* Protected routes - Teacher access only */}
-        <Route path="/teacher/dashboard" element={
-          <RequireAuth>
-            <RequireRole roles={["teacher"]}>
-              <TeacherDashboard />
-            </RequireRole>
-          </RequireAuth>
-        } />
+          {/* Protected Teacher Routes */}
+          <Route 
+            path="/teacher/dashboard" 
+            element={
+              <RequireAuth>
+                <RequireRole roles={["teacher", "admin"]}>
+                  <TeacherDashboard />
+                </RequireRole>
+              </RequireAuth>
+            } 
+          />
+          
+          {/* --- 2. ADD THE NEW ROUTE FOR THE PROFILES PAGE --- */}
+          {/* <Route 
+            path="/profiles" 
+            element={
+              <RequireAuth>
+                <RequireRole roles={["teacher", "admin"]}>
+                  <ProfilesPage />
+                </RequireRole>
+              </RequireAuth>
+            } 
+          /> */}
 
-        {/* Error pages */}
-        <Route path="/403" element={<Forbidden />} />
-        <Route path="*" element={<Page404 />} />
-      </Routes>
+          {/* Error pages */}
+          <Route path="/403" element={<Forbidden />} />
+          <Route path="*" element={<Page404 />} />
+        </Routes>
+      </>
     </AuthProvider>
   );
 }

@@ -323,6 +323,7 @@ class Exam(Base):
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
+    submissions = relationship("Submission", back_populates="exam", cascade="all, delete-orphan")
     creator = relationship("User", foreign_keys=[created_by], back_populates="created_exams")
     exam_questions = relationship("ExamQuestion", back_populates="exam", cascade="all, delete-orphan")
     exam_registrations = relationship("ExamRegistration", back_populates="exam", cascade="all, delete-orphan")
@@ -419,8 +420,9 @@ class ExamSession(Base):
 # Submission Models
 class Submission(Base):
     __tablename__ = "submissions"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    exam_id = Column(UUID(as_uuid=True), ForeignKey("exams.id"), nullable=False)   # NEW
     exam_session_id = Column(UUID(as_uuid=True), ForeignKey("exam_sessions.id"), nullable=False)
     question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id"), nullable=False)
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
@@ -432,21 +434,24 @@ class Submission(Base):
     created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
-    
+
     # Relationships
+    exam = relationship("Exam", back_populates="submissions")   # NEW
     exam_session = relationship("ExamSession", back_populates="submissions")
     question = relationship("Question", back_populates="submissions")
     student = relationship("User", foreign_keys=[student_id], back_populates="submissions")
     submission_results = relationship("SubmissionResult", back_populates="submission", cascade="all, delete-orphan")
     submission_events = relationship("SubmissionEvent", back_populates="submission", cascade="all, delete-orphan")
-    
+
     __table_args__ = (
+        Index("idx_submissions_exam_id", "exam_id"),   # NEW index
         Index("idx_submissions_exam_session_id", "exam_session_id"),
         Index("idx_submissions_question_id", "question_id"),
         Index("idx_submissions_student_id", "student_id"),
         Index("idx_submissions_status", "status"),
         Index("idx_submissions_submitted_at", "submitted_at"),
     )
+
 
 class SubmissionResult(Base):
     __tablename__ = "submission_results"

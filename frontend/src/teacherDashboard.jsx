@@ -17,12 +17,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreHorizontal, Plus, Calendar, Users, BookOpen, Clock, Eye, Edit, Trash2, Download, LogOut, Settings, BarChart3, TrendingUp, AlertCircle, RefreshCw, FileQuestion, PlusCircle, Search, UserPlus, UserCheck, Info, CheckCircle2, PlayCircle, PauseCircle, StopCircle } from "lucide-react";
+import { MoreHorizontal, Plus, Calendar, Users, BookOpen, Clock, Eye, Edit, Trash2, Download, LogOut, Settings, BarChart3, TrendingUp, AlertCircle, RefreshCw, FileQuestion, PlusCircle, Search, UserPlus, UserCheck, Info, CheckCircle2, PlayCircle, PauseCircle, StopCircle, BookOpenCheck } from "lucide-react";
 import { toast } from "sonner";
 
 // Import your auth context and api client (adjust paths as needed)
 import { AuthContext } from "./auth/AuthProvider";
 import api from "./api/apiClient";
+import QuestionsManagement from "./QuestionsManagement";
 
 // Mock data for dashboard stats and analytics
 const dashboardStats = { activeExams: 3, totalStudents: 245, completedExams: 12, averageScore: 78.5 };
@@ -905,7 +906,7 @@ export default function TeacherDashboard() {
 
       <div className="container mx-auto p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="dashboard" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               Dashboard
@@ -922,6 +923,7 @@ export default function TeacherDashboard() {
               <BarChart3 className="h-4 w-4" />
               Analytics
             </TabsTrigger>
+            <TabsTrigger value="questions" className="gap-2"><BookOpenCheck className="h-4 w-4" />Questions</TabsTrigger>
           </TabsList>
 
           {/* Dashboard Tab */}
@@ -1523,6 +1525,9 @@ export default function TeacherDashboard() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+          <TabsContent value="questions">
+            <QuestionsManagement />
           </TabsContent>
         </Tabs>
 

@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 from backend.database import Base, engine, get_db, SessionLocal
 from backend import crud, schemas
 from backend.wait_for_db import wait_for_db
-from backend.settings import settings
 from backend.auth.router import router as auth_router
 
 from backend.auth.dependencies import require_role, get_current_user
@@ -284,7 +283,7 @@ def delete_question_category(category_id: UUID, db: Session = Depends(get_db)):
     return db_category
 
 # Question routes
-@app.get("/questions/", response_model=List[schemas.Question])
+@app.get("/questions/", response_model=List[schemas.Question], dependencies=[Depends(require_role(dbmodels.UserRole.ADMIN, dbmodels.UserRole.TEACHER))])
 def read_questions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     questions = crud.get_questions(db, skip=skip, limit=limit)
     return questions
@@ -452,8 +451,8 @@ def read_exam_session(session_id: UUID, db: Session = Depends(get_db)):
     return db_session
 
 @app.post("/exam-sessions/", response_model=schemas.ExamSession)
-def create_exam_session(session: schemas.ExamSessionCreate, db: Session = Depends(get_db)):
-    return crud.create_exam_session(db=db, obj_in=session)
+def create_exam_session(session: schemas.ExamSessionCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user),):
+    return crud.create_exam_session(db=db, obj_in=session, student_id=current_user.id)
 
 @app.put("/exam-sessions/{session_id}", response_model=schemas.ExamSession)
 def update_exam_session(session_id: UUID, session: schemas.ExamSessionUpdate, db: Session = Depends(get_db)):
@@ -483,8 +482,18 @@ def read_submission(submission_id: UUID, db: Session = Depends(get_db)):
     return db_submission
 
 @app.post("/submissions/", response_model=schemas.Submission)
-def create_submission(submission: schemas.SubmissionCreate, db: Session = Depends(get_db)):
-    return crud.create_submission(db=db, obj_in=submission)
+def create_submission(submission: schemas.SubmissionCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user),):
+    # Find the exam session for this user & exam
+    exam_session = db.query(models.ExamSession).filter_by(
+        exam_id=submission.exam_id,
+        student_id=current_user.id
+    ).first()
+
+    if not exam_session:
+        raise HTTPException(status_code=400, detail="No active exam session found for this exam")
+
+    
+    return crud.create_submission(db=db, obj_in=submission, student_id=current_user.id, exam_session_id=exam_session.id)
 
 @app.put("/submissions/{submission_id}", response_model=schemas.Submission)
 def update_submission(submission_id: UUID, submission: schemas.SubmissionUpdate, db: Session = Depends(get_db)):
@@ -648,12 +657,24 @@ def get_all_student_questions_for_exam(exam_id: UUID, db: Session = Depends(get_
     return assignments
 
 # Get questions with full question details for a student in an exam
-@app.get("/exams/{exam_id}/students/{student_id}/questions-with-details/", response_model=List[schemas.StudentExamQuestionWithQuestion])
-def get_student_questions_with_details(exam_id: UUID, student_id: UUID, db: Session = Depends(get_db)):
-    """Get questions assigned to a student with full question details"""
+@app.get(
+    "/exams/{exam_id}/questions-with-details/",
+    response_model=List[schemas.StudentExamQuestionWithQuestion]
+)
+def get_student_questions_with_details(
+    exam_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)  # get logged-in student
+):
+    """Get questions assigned to the logged-in student for this exam"""
+    student_id = current_user.id  # ✅ automatically take from logged-in user
+
     questions = crud.get_exam_questions_for_student(db, student_id=student_id, exam_id=exam_id)
     if not questions:
-        raise HTTPException(status_code=404, detail="No questions found for this student in this exam")
+        raise HTTPException(
+            status_code=404,
+            detail="No questions found for this student in this exam"
+        )
     return questions
 
 # Assign a single question to a student
@@ -685,15 +706,27 @@ def bulk_assign_questions(
         raise HTTPException(status_code=400, detail=f"Error in bulk assignment: {str(e)}")
 
 # Get all exams where a specific student has assigned questions
-@app.get("/students/{student_id}/assigned-exams/", response_model=List[schemas.StudentExamQuestion])
-def get_student_assigned_exams(student_id: UUID, db: Session = Depends(get_db)):
-    """Get all exams where a student has assigned questions"""
+@app.get("/me/assigned-exams/", response_model=List[schemas.StudentExamQuestion])
+def get_my_assigned_exams(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)  # 👈 auto-inject logged-in user
+):
+    """Get all exams where the logged-in student has assigned questions"""
     assignments = db.query(models.StudentExamQuestion).filter(
-        models.StudentExamQuestion.student_id == student_id
+        models.StudentExamQuestion.student_id == current_user.id
     ).all()
+
     if not assignments:
         raise HTTPException(status_code=404, detail="No exam assignments found for this student")
+    
     return assignments
+
+@app.get("/students/{student_id}/assigned-exams/", response_model=List[schemas.StudentExamQuestion])
+def get_student_assigned_exams_admin(student_id: UUID, db: Session = Depends(get_db)):
+    """Admin/teacher endpoint: get assigned exams for a given student_id"""
+    return db.query(models.StudentExamQuestion).filter(
+        models.StudentExamQuestion.student_id == student_id
+    ).all()
 
 # Check if a student has questions assigned for a specific exam
 @app.get("/exams/{exam_id}/students/{student_id}/has-questions/")
@@ -710,6 +743,14 @@ def check_student_has_questions(exam_id: UUID, student_id: UUID, db: Session = D
         "exam_id": exam_id,
         "student_id": student_id
     }
+
+@app.get("/exams/{exam_id}/submissions", response_model=List[schemas.Submission])
+def read_submissions_by_exam(
+    exam_id: UUID, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
+):
+    submissions = crud.get_submissions_by_exam_id(db, exam_id=exam_id, skip=skip, limit=limit)
+    return submissions
+
 
 # Get question statistics for an exam
 @app.get("/exams/{exam_id}/question-stats/")
