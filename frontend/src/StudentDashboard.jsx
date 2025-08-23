@@ -15,6 +15,34 @@ import { AuthContext } from "./auth/AuthProvider";
 import api from "./api/apiClient";
 import LogoutButton from "./LogoutButton";
 
+// Reduced glow intensity CSS for the red dot (back to original level)
+const glowingDotStyles = `
+  @keyframes pulse-glow {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 5px #ef4444, 0 0 10px #ef4444, 0 0 15px #ef4444;
+    }
+    50% {
+      transform: scale(1.1);
+      box-shadow: 0 0 10px #ef4444, 0 0 20px #ef4444, 0 0 25px #ef4444;
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 5px #ef4444, 0 0 10px #ef4444, 0 0 15px #ef4444;
+    }
+  }
+  
+  .glowing-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #ef4444;
+    animation: pulse-glow 1.5s ease-in-out infinite;
+    margin-right: 8px;
+    display: inline-block;
+  }
+`;
+
 export default function StudentDashboard() {
     const { user, loading: authLoading } = useContext(AuthContext);
     const [registeredExams, setRegisteredExams] = useState([]);
@@ -25,6 +53,17 @@ export default function StudentDashboard() {
     const [selectedExamId, setSelectedExamId] = useState(null);
     const [selectedExamData, setSelectedExamData] = useState(null);
     const navigate = useNavigate();
+
+    // Add the glow styles to the document head
+    useEffect(() => {
+        const styleElement = document.createElement("style");
+        styleElement.textContent = glowingDotStyles;
+        document.head.appendChild(styleElement);
+
+        return () => {
+            document.head.removeChild(styleElement);
+        };
+    }, []);
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -41,6 +80,7 @@ export default function StudentDashboard() {
         if (user && user.role === 'student') {
             fetchRegisteredExams();
         }
+        // eslint-disable-next-line
     }, [user]);
 
     const fetchRegisteredExams = async () => {
@@ -63,10 +103,31 @@ export default function StudentDashboard() {
                 })
             );
 
+            // Corrected sorting: Active first, then upcoming (earliest first), then completed (latest first)
             const validExams = examsWithDetails.filter(item => item.exam);
-            const sortedExams = validExams.sort((a, b) =>
-                new Date(a.exam.start_time) - new Date(b.exam.start_time)
-            );
+            const sortedExams = validExams.sort((a, b) => {
+                const statusA = getExamStatus(a.exam);
+                const statusB = getExamStatus(b.exam);
+
+                // Priority order: active > upcoming > completed
+                const statusPriority = { active: 3, upcoming: 2, completed: 1 };
+
+                if (statusPriority[statusA] !== statusPriority[statusB]) {
+                    return statusPriority[statusB] - statusPriority[statusA];
+                }
+
+                // Within same status group
+                const dateA = new Date(a.exam.start_time);
+                const dateB = new Date(b.exam.start_time);
+
+                if (statusA === 'completed') {
+                    // For completed exams: latest first (most recent)
+                    return dateB - dateA;
+                } else {
+                    // For active and upcoming exams: earliest first (soonest)
+                    return dateA - dateB;
+                }
+            });
 
             setRegisteredExams(sortedExams);
         } catch (error) {
@@ -103,89 +164,80 @@ export default function StudentDashboard() {
         return 'completed';
     }
 
+    // Format date as dd/mm/yyyy
+    function formatDateDDMMYYYY(dateString) {
+        const date = new Date(dateString);
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+    }
+
     function handleStartExamClick(examData) {
         setSelectedExamId(examData.registration.exam_id);
         setSelectedExamData(examData);
         setShowStartDialog(true);
     }
 
-    // Generate unique UUID v4
-    function generateUniqueSessionToken() {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
-    }
-
     async function getClientIP() {
         try {
             const response = await fetch('https://api.ipify.org?format=json');
             const data = await response.json();
-            return data.ip || '127.0.0.1';
+            return data.ip;
         } catch {
-            return '127.0.0.1';
+            return 'unknown';
         }
     }
 
     async function handleStartExam() {
-        if (!selectedExamId || !selectedExamData || !user?.id) return;
+        if (!selectedExamId || !selectedExamData) return;
 
         try {
             setStartingExam(selectedExamId);
 
-            // Generate session data
-            const sessionId = generateUniqueSessionToken();
-            const sessionToken = generateUniqueSessionToken();
-            const now = new Date().toISOString();
-
-            // CRITICAL: Use EXACT field names from your ExamSessionCreate schema
+            const now = new Date();
             const sessionData = {
-                // Note: DO NOT include 'id' field - let backend generate it
-                exam_id: selectedExamId,                // Matches schema
-                session_token: sessionToken,            // MUST be non-null string
-                started_at: now,                        // MUST be non-null datetime string
-                ended_at: null,                         // Can be null
-                last_activity_at: now,                  // MUST be non-null datetime string  
-                status: "active",                       // MUST be lowercase enum value
-                browser_info: {                         // MUST be dict/object, not string
+                started_at: now.toISOString(),
+                ended_at: null,
+                last_activity_at: now.toISOString(),
+                status: "active",
+                browser_info: {
                     userAgent: navigator.userAgent,
                     screenResolution: `${screen.width}x${screen.height}`,
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                     language: navigator.language,
                     platform: navigator.platform
                 },
-                ip_address: await getClientIP(),        // Should be non-null string
-                extra_data: {                          // CRITICAL: Use 'extra_data' not 'extra'
+                ip_address: await getClientIP(),
+                extra_data: {
                     registration_id: selectedExamData.registration.id,
                     exam_title: selectedExamData.exam.title,
                     student_email: user?.email
-                }
+                },
+                exam_id: selectedExamId
             };
 
-            console.log('Creating exam session with payload:', sessionData);
+            console.log('Creating exam session:', sessionData);
 
             const response = await api.post('/exam-sessions/', sessionData);
 
             if (response.status !== 200 && response.status !== 201) {
-                throw new Error(`Failed to create exam session: ${response.status}`);
+                throw new Error('Failed to create exam session');
             }
 
             const createdSession = response.data;
             console.log('Exam session created successfully:', createdSession);
 
-            // Store session data
-            localStorage.setItem('examSessionToken', sessionToken);
             localStorage.setItem('currentExamId', selectedExamId);
+            localStorage.setItem('examSessionData', JSON.stringify(createdSession));
+            localStorage.setItem('examSessionId', createdSession.id || createdSession.session_id);
 
             toast.success("Exam Started", {
-                description: "Your exam session has been created successfully."
+                description: "Your exam session has been created successfully. Redirecting to exam platform..."
             });
 
-            // Navigate to exam platform
             navigate(`/student/platform/${selectedExamId}`, {
                 state: {
-                    sessionToken: sessionToken,
                     examDetails: selectedExamData.exam,
                     registration: selectedExamData.registration,
                     sessionData: createdSession
@@ -194,21 +246,9 @@ export default function StudentDashboard() {
 
         } catch (error) {
             console.error('Error starting exam:', error);
-
-            if (error.response?.status === 422) {
-                console.error('Validation errors:', error.response.data);
-                toast.error("Validation Error", {
-                    description: `Request validation failed: ${JSON.stringify(error.response.data.detail)}`
-                });
-            } else if (error.response?.status === 500) {
-                toast.error("Server Error", {
-                    description: "Internal server error occurred. Check your data format and try again."
-                });
-            } else {
-                toast.error("Failed to start exam", {
-                    description: error.response?.data?.detail || error.message || "Please try again."
-                });
-            }
+            toast.error("Failed to start exam", {
+                description: error.response?.data?.detail || error.message || "Please try again."
+            });
         } finally {
             setStartingExam(null);
             setShowStartDialog(false);
@@ -217,13 +257,18 @@ export default function StudentDashboard() {
         }
     }
 
-
     function getStatusBadge(status) {
         switch (status) {
             case 'upcoming':
                 return <Badge variant="secondary" className="flex items-center gap-1"><Clock className="w-4 h-4" />Upcoming</Badge>;
             case 'active':
-                return <Badge variant="default" className="flex items-center gap-1 bg-green-600"><Play className="w-4 h-4" />Active</Badge>;
+                // Return LIVE with glowing dot instead of Active badge
+                return (
+                    <div className="flex items-center bg-red-50 border border-red-200 rounded-md px-3 py-1">
+                        <div className="glowing-dot"></div>
+                        <span className="text-red-700 font-bold text-sm uppercase tracking-wider">LIVE</span>
+                    </div>
+                );
             case 'completed':
                 return <Badge variant="outline" className="flex items-center gap-1"><CheckCircle className="w-4 h-4" />Completed</Badge>;
             default:
@@ -248,6 +293,22 @@ export default function StudentDashboard() {
                 {examType || 'exam'}
             </Badge>
         );
+    }
+
+    function formatEndTime(exam, status) {
+        if (status !== 'completed') return null;
+
+        const endTime = new Date(exam.end_time);
+        const now = new Date();
+        const diffHours = (now - endTime) / (1000 * 60 * 60);
+
+        if (diffHours < 24) {
+            // Less than a day - show time
+            return `Ended at ${endTime.toLocaleTimeString()}`;
+        } else {
+            // More than a day - show date
+            return `Ended on ${formatDateDDMMYYYY(exam.end_time)}`;
+        }
     }
 
     if (authLoading || loading) {
@@ -372,44 +433,117 @@ export default function StudentDashboard() {
                                         const exam = examData.exam;
                                         const status = getExamStatus(exam);
                                         const timeRemaining = formatTimeRemaining(exam.start_time);
+                                        const endTimeFormatted = formatEndTime(exam, status);
+
                                         return (
-                                            <Card key={exam.id} className="transition-all border border-sky-100/70 shadow-md hover:shadow-xl bg-white/90 p-0">
+                                            <Card
+                                                key={exam.id}
+                                                className="transition-all border border-sky-100/70 shadow-md hover:shadow-xl bg-white/90 p-0"
+                                            >
                                                 <CardContent className="p-6">
-                                                    <div className="flex flex-wrap justify-between items-start mb-3">
-                                                        <div className="flex flex-col gap-2">
-                                                            <div className="flex items-center gap-3">
-                                                                <h3 className="text-xl font-semibold text-sky-900">{exam.title}</h3>
-                                                                {getStatusBadge(status)}
-                                                            </div>
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <div className="flex flex-col gap-2 flex-1">
+                                                            <h3 className="text-xl font-semibold text-sky-900">{exam.title}</h3>
                                                             <div className="flex items-center gap-2">
                                                                 {getExamTypeBadge(exam.exam_type)}
                                                                 <span className="text-xs text-slate-500">
-                                                                    Created: {new Date(exam.created_at || Date.now()).toLocaleDateString()}
+                                                                    Created: {formatDateDDMMYYYY(exam.created_at || new Date())}
                                                                 </span>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                    <div className="flex flex-col md:flex-row md:items-center md:gap-6 mt-2">
-                                                        <div className="flex flex-col gap-2 text-[15px] text-sky-900 font-medium mb-2">
-                                                            <span><Calendar className="inline w-4 h-4 mr-1 align-middle" /> {new Date(exam.start_time).toLocaleDateString()} {new Date(exam.start_time).toLocaleTimeString()}</span>
-                                                            <span><Clock className="inline w-4 h-4 mr-1 align-middle" /> {exam.duration_minutes} minutes</span>
-                                                            <span><Timer className="inline w-4 h-4 mr-1 align-middle" /> {status === "upcoming"
-                                                                ? <span>
-                                                                    <span className="text-blue-700 font-bold font-mono">{timeRemaining}</span> until start
-                                                                </span>
-                                                                : `Ends: ${new Date(exam.end_time).toLocaleTimeString()}`
-                                                            }</span>
+                                                        {/* LIVE badge with glowing dot for active exams */}
+                                                        <div className="flex flex-col items-end gap-2">
+                                                            {getStatusBadge(status)}
                                                         </div>
+                                                    </div>
+
+                                                    <div className="flex flex-col md:flex-row md:items-center md:gap-6 mt-4">
+                                                        <div className="flex flex-col gap-2 text-[15px] font-medium mb-2">
+                                                            {/* Show different info based on status */}
+                                                            {status === 'upcoming' && (
+                                                                <>
+                                                                    {/* Start time - Green color */}
+                                                                    <span className="flex items-center gap-1">
+                                                                        <Calendar className="w-4 h-4 text-green-600" />
+                                                                        <span className="text-green-700 font-semibold">Starts:</span>
+                                                                        <span className="text-green-600">
+                                                                            {formatDateDDMMYYYY(exam.start_time)} at {new Date(exam.start_time).toLocaleTimeString()}
+                                                                        </span>
+                                                                    </span>
+
+                                                                    {/* Duration */}
+                                                                    <span className="flex items-center gap-1">
+                                                                        <Clock className="w-4 h-4 text-sky-600" />
+                                                                        <span className="text-sky-700 font-semibold">Duration:</span>
+                                                                        <span className="text-sky-600">{exam.duration_minutes} minutes</span>
+                                                                    </span>
+
+                                                                    {/* Countdown */}
+                                                                    {timeRemaining && (
+                                                                        <span className="flex items-center gap-1">
+                                                                            <Timer className="w-4 h-4 text-blue-600" />
+                                                                            <span className="text-blue-700 font-semibold">Starts in:</span>
+                                                                            <span className="text-blue-700 font-bold font-mono">{timeRemaining}</span>
+                                                                        </span>
+                                                                    )}
+                                                                </>
+                                                            )}
+
+                                                            {status === 'active' && (
+                                                                <>
+                                                                    {/* Started text - no date/time */}
+                                                                    <span className="flex items-center gap-1">
+                                                                        <Play className="w-4 h-4 text-green-600" />
+                                                                        <span className="text-green-700 font-semibold">Started</span>
+                                                                    </span>
+
+                                                                    {/* Duration */}
+                                                                    <span className="flex items-center gap-1">
+                                                                        <Clock className="w-4 h-4 text-sky-600" />
+                                                                        <span className="text-sky-700 font-semibold">Duration:</span>
+                                                                        <span className="text-sky-600">{exam.duration_minutes} minutes</span>
+                                                                    </span>
+
+                                                                    {/* End time */}
+                                                                    <span className="flex items-center gap-1">
+                                                                        <Timer className="w-4 h-4 text-red-600" />
+                                                                        <span className="text-red-700 font-semibold">Ends:</span>
+                                                                        <span className="text-red-600">{new Date(exam.end_time).toLocaleTimeString()}</span>
+                                                                    </span>
+                                                                </>
+                                                            )}
+
+                                                            {status === 'completed' && (
+                                                                <>
+                                                                    {/* Only show ended info - no starts */}
+                                                                    <span className="flex items-center gap-1">
+                                                                        <CheckCircle className="w-4 h-4 text-red-600" />
+                                                                        <span className="text-red-700 font-semibold">{endTimeFormatted}</span>
+                                                                    </span>
+
+                                                                    {/* Duration */}
+                                                                    <span className="flex items-center gap-1">
+                                                                        <Clock className="w-4 h-4 text-sky-600" />
+                                                                        <span className="text-sky-700 font-semibold">Duration:</span>
+                                                                        <span className="text-sky-600">{exam.duration_minutes} minutes</span>
+                                                                    </span>
+                                                                </>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Description */}
                                                         <div className="text-sm text-slate-600 md:ml-auto max-w-md">
                                                             <div className="font-semibold text-slate-700 mb-1">Description:</div>
                                                             {exam.description || <span className="italic text-slate-400">No description</span>}
                                                         </div>
                                                     </div>
-                                                    <div className="flex justify-end mt-3">
+
+                                                    {/* Start button moved back below */}
+                                                    <div className="flex justify-end mt-4">
                                                         {status === 'active' && (
                                                             <Button
                                                                 onClick={() => handleStartExamClick(examData)}
-                                                                className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 text-white"
+                                                                className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 text-white shadow-lg"
                                                                 disabled={startingExam === exam.id}
                                                             >
                                                                 <Play className="w-4 h-4 mr-2" />
