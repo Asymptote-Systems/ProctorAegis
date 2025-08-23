@@ -1,5 +1,7 @@
 // LogoutButton.jsx
 import React, { useContext } from "react";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 import { AuthContext } from "./auth/AuthProvider";
 import { useNavigate } from "react-router-dom";
 
@@ -13,8 +15,14 @@ export default function LogoutButton() {
   };
 
   return (
-    <button onClick={handleLogout} className="btn btn-danger">
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleLogout}
+      className="flex items-center gap-2"
+    >
+      <LogOut className="w-4 h-4" />
       Logout
-    </button>
+    </Button>
   );
 }

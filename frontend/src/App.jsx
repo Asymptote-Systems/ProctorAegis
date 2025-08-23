@@ -9,6 +9,7 @@ import RequireRole from './auth/RequireRole';
 import Login from './Login.jsx';
 import StudentPlatform from './StudentPlatform.jsx';
 import TeacherDashboard from './TeacherDashboard.jsx';
+import StudentDashboard from "./StudentDashboard";
 import Page404 from './Page404.jsx';
 import APITest from './APITest.jsx';
 import Forbidden from './Forbidden.jsx';
@@ -57,7 +58,18 @@ function App() {
               </RequireAuth>
             } 
           />
-          
+          {/* Protected Student Routes */}
+          <Route
+            path="/student/dashboard"
+            element={
+              <RequireAuth>
+                <RequireRole roles={["student"]}>
+                  <StudentDashboard />
+                </RequireRole>
+              </RequireAuth>
+            }
+          />
+
           {/* --- 2. ADD THE NEW ROUTE FOR THE PROFILES PAGE --- */}
           {/* <Route 
             path="/profiles" 
