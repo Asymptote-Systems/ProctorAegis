@@ -6,6 +6,7 @@ Generated from SQLAlchemy models
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
+import uuid
 from . import models
 from . import schemas
 from backend.auth.passwords import hash_password

@@ -394,7 +394,7 @@ class ExamSession(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     exam_id = Column(UUID(as_uuid=True), ForeignKey("exams.id"), nullable=False)
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    session_token = Column(String(255), unique=True, nullable=False)
+    session_token = Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False)
     started_at = Column(DateTime(timezone=True))
     ended_at = Column(DateTime(timezone=True))
     last_activity_at = Column(DateTime(timezone=True))
