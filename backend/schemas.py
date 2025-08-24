@@ -416,7 +416,6 @@ class SubmissionUpdate(BaseModel):
 class Submission(SubmissionBase):
     id: UUID
     exam_id: UUID
-    exam_session_id: UUID
     question_id: UUID
     student_id: UUID
     submitted_at: datetime

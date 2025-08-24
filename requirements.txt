@@ -6,3 +6,4 @@ uvicorn[standard]==0.22.0
 pydantic[email]==1.10.15
 passlib==1.7.4
 python-jose[cryptography]==3.3.0
+aiohttp

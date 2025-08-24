@@ -408,7 +408,6 @@ class ExamSession(Base):
     # Relationships
     exam = relationship("Exam", back_populates="exam_sessions")
     student = relationship("User", foreign_keys=[student_id])
-    submissions = relationship("Submission", back_populates="exam_session", cascade="all, delete-orphan")
     exam_events = relationship("ExamEvent", back_populates="exam_session", cascade="all, delete-orphan")
     
     __table_args__ = (
@@ -424,7 +423,6 @@ class Submission(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     exam_id = Column(UUID(as_uuid=True), ForeignKey("exams.id"), nullable=False)   # NEW
-    exam_session_id = Column(UUID(as_uuid=True), ForeignKey("exam_sessions.id"), nullable=False)
     question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id"), nullable=False)
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     source_code = Column(Text, nullable=False)
@@ -438,7 +436,6 @@ class Submission(Base):
 
     # Relationships
     exam = relationship("Exam", back_populates="submissions")   # NEW
-    exam_session = relationship("ExamSession", back_populates="submissions")
     question = relationship("Question", back_populates="submissions")
     student = relationship("User", foreign_keys=[student_id], back_populates="submissions")
     submission_results = relationship("SubmissionResult", back_populates="submission", cascade="all, delete-orphan")
@@ -446,7 +443,6 @@ class Submission(Base):
 
     __table_args__ = (
         Index("idx_submissions_exam_id", "exam_id"),   # NEW index
-        Index("idx_submissions_exam_session_id", "exam_session_id"),
         Index("idx_submissions_question_id", "question_id"),
         Index("idx_submissions_student_id", "student_id"),
         Index("idx_submissions_status", "status"),

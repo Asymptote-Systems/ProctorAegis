@@ -13,6 +13,8 @@ import StudentDashboard from "./StudentDashboard";
 import Page404 from './Page404.jsx';
 import APITest from './APITest.jsx';
 import Forbidden from './Forbidden.jsx';
+import ExamManagementPage from './ExamManagement'
+import SubmissionResultsDashboard from "./SubmissionResultsDashboard";
 
 function App() {
   return (
@@ -93,6 +95,9 @@ function App() {
               </RequireAuth>
             } 
           /> */}
+
+          <Route path="/exam-evaluation" element={<ExamManagementPage />} />
+          <Route path="/results" element={<SubmissionResultsDashboard />} />
 
           {/* Error pages */}
           <Route path="/403" element={<Forbidden />} />
