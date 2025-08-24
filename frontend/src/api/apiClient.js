@@ -81,5 +81,17 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
+// Request interceptor to add auth header
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 export default api;
