@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Clock, FileCheck, AlertTriangle, Save, CheckCircle, Moon, Sun } from 'lucide-react';
 import Editor from "@monaco-editor/react";
 import { toast } from "sonner";
@@ -38,72 +38,69 @@ import {
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Textarea } from '@/components/ui/textarea';
+
 
 const STORAGE_KEY = "student_exam_progress";
 const THEME_STORAGE_KEY = "student_exam_theme";
-const AUTO_SAVE_INTERVAL = 3000; // 3 seconds
-const SAVE_DEBOUNCE_DELAY = 1000; // 1 second
+const AUTO_SAVE_INTERVAL = 5000; // 5 seconds
+const SAVE_DEBOUNCE_DELAY = 2000; // 2 seconds
 
-// Mock student ID - In a real app, this would come from authentication
-const STUDENT_ID = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
 
 const Student_UI = () => {
-  // Load persisted state from localStorage with better error handling
-  const loadPersistedState = () => {
+  const { examId } = useParams();
+  
+  // Refs for cleanup
+  const timerRef = useRef(null);
+  const autoSaveIntervalRef = useRef(null);
+  const saveTimeoutRef = useRef(null);
+  const lastCodeRef = useRef('');
+  const isInitializedRef = useRef(false);
+  const examEndTimeRef = useRef(null);
+
+
+  // Memoized storage key
+  const storageKey = useMemo(() => `${STORAGE_KEY}_${examId}`, [examId]);
+
+
+  // Load persisted state - memoized to prevent recalculation
+  const initialState = useMemo(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(storageKey);
       return stored ? JSON.parse(stored) : {};
     } catch (error) {
       console.warn('Failed to load persisted state:', error);
       return {};
     }
-  };
+  }, [storageKey]);
 
-  // Load theme preference from localStorage
-  const loadThemePreference = () => {
+
+  // Load theme preference - memoized
+  const initialTheme = useMemo(() => {
     try {
-      const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-      return storedTheme || 'light';
-    } catch (error) {
-      console.warn('Failed to load theme preference:', error);
+      return localStorage.getItem(THEME_STORAGE_KEY) || 'light';
+    } catch {
       return 'light';
     }
-  };
+  }, []);
 
-  const persisted = loadPersistedState();
 
-  // State for dynamically fetched exam data
+  // State management
   const [examData, setExamData] = useState(null);
   const [fetchError, setFetchError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  // State management
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(persisted.currentQuestionIndex || 0);
-  const [code, setCode] = useState(persisted.code || '');
-  const [language, setLanguage] = useState(persisted.language || 'javascript');
-  const [timeLeft, setTimeLeft] = useState(persisted.timeLeft || 5400); // 90 minutes fallback
-  const [savedAnswers, setSavedAnswers] = useState(persisted.savedAnswers || {});
-  const [submittedAnswers, setSubmittedAnswers] = useState(persisted.submittedAnswers || {});
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(initialState.currentQuestionIndex || 0);
+  const [code, setCode] = useState(initialState.code || '');
+  const [language, setLanguage] = useState(initialState.language || 'javascript');
+  const [timeLeft, setTimeLeft] = useState(null);
+  const [savedAnswers, setSavedAnswers] = useState(initialState.savedAnswers || {});
+  const [submittedAnswers, setSubmittedAnswers] = useState(initialState.submittedAnswers || {});
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
-
-  // Theme state
-  const [theme, setTheme] = useState(loadThemePreference());
-
-  // Auto-save related state
-  const [autoSaveStatus, setAutoSaveStatus] = useState('idle'); // 'idle', 'saving', 'saved', 'error'
-  const [lastSavedTime, setLastSavedTime] = useState(persisted.lastSavedTime || Date.now());
+  const [theme, setTheme] = useState(initialTheme);
+  const [autoSaveStatus, setAutoSaveStatus] = useState('idle');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [examSessionId] = useState(initialState.examSessionId || generateUUID());
 
-  // Exam session state
-  const [examSessionId] = useState(persisted.examSessionId || generateUUID());
-  const [attemptNumbers, setAttemptNumbers] = useState(persisted.attemptNumbers || {});
 
-  // Refs for debouncing and intervals
-  const autoSaveIntervalRef = useRef(null);
-  const saveTimeoutRef = useRef(null);
-  const lastCodeRef = useRef(code);
-  const { examId } = useParams();
   // Generate UUID
   function generateUUID() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -113,47 +110,88 @@ const Student_UI = () => {
     });
   }
 
-  // Persist state
-  const persistState = useCallback((state) => {
+
+  // Calculate time remaining based on current time and exam end time
+  const calculateTimeRemaining = useCallback(() => {
+    if (!examEndTimeRef.current) return 0;
+    
+    const now = Date.now();
+    const endTime = examEndTimeRef.current;
+    const remainingMs = endTime - now;
+    
+    // Return remaining seconds, minimum 0
+    return Math.max(0, Math.floor(remainingMs / 1000));
+  }, []);
+
+
+  // Memoized starter code templates
+  const starterCodeTemplates = useMemo(() => ({
+    javascript: '// Write your JavaScript code here...\nfunction solution() {\n    \n}',
+    python: '# Write your Python code here...\ndef solution():\n    pass',
+    java: '// Write your Java code here...\npublic class Solution {\n    \n}',
+    cpp: '// Write your C++ code here...\n#include <iostream>\nusing namespace std;\n\nint main() {\n    return 0;\n}',
+    c: '// Write your C code here...\n#include <stdio.h>\n\nint main() {\n    return 0;\n}'
+  }), []);
+
+
+  // Memoized calculations
+  const answeredQuestionsCount = useMemo(() => {
+    return Object.keys(submittedAnswers).length;
+  }, [submittedAnswers]);
+
+
+  const completionPercentage = useMemo(() => {
+    if (!examData || examData.questions.length === 0) return 0;
+    return Math.round((answeredQuestionsCount / examData.questions.length) * 100);
+  }, [answeredQuestionsCount, examData]);
+
+
+  const currentQuestion = useMemo(() => {
+    return examData?.questions?.[currentQuestionIndex] || null;
+  }, [examData, currentQuestionIndex]);
+
+
+  const isCurrentQuestionSubmitted = useMemo(() => {
+    return currentQuestion ? submittedAnswers.hasOwnProperty(currentQuestion.id) : false;
+  }, [currentQuestion, submittedAnswers]);
+
+
+  // Persist state function - memoized with useCallback
+  const persistState = useCallback((additionalState = {}) => {
     try {
       const stateToSave = {
         currentQuestionIndex,
         code,
         language,
-        timeLeft,
         savedAnswers,
         submittedAnswers,
-        lastSavedTime: Date.now(),
         examSessionId,
-        attemptNumbers,
-        ...state
+        examEndTime: examEndTimeRef.current,
+        lastSavedTime: Date.now(),
+        ...additionalState
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+      localStorage.setItem(storageKey, JSON.stringify(stateToSave));
       return true;
     } catch (error) {
       console.error('Failed to persist state:', error);
-      setAutoSaveStatus('error');
       return false;
     }
-  }, [currentQuestionIndex, code, language, timeLeft, savedAnswers, submittedAnswers, examSessionId, attemptNumbers]);
+  }, [currentQuestionIndex, code, language, savedAnswers, submittedAnswers, examSessionId, storageKey]);
 
-  // Save theme preference
-  const saveThemePreference = (newTheme) => {
+
+  // Theme management
+  const toggleTheme = useCallback(() => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
     try {
       localStorage.setItem(THEME_STORAGE_KEY, newTheme);
     } catch (error) {
-      console.error('Failed to save theme preference:', error);
+      console.error('Failed to save theme:', error);
     }
-  };
+  }, [theme]);
 
-  // Toggle theme
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    saveThemePreference(newTheme);
-  };
 
-  // Apply theme
+  // Apply theme effect
   useEffect(() => {
     const root = window.document.documentElement;
     if (theme === 'dark') {
@@ -163,135 +201,41 @@ const Student_UI = () => {
     }
   }, [theme]);
 
-  // Fetch exam data from API
-  useEffect(() => {
-    async function fetchExamData() {
-      try {
-        setIsLoading(true);
-        const token = localStorage.getItem('access_token');
-        
-        if (!token) {
-          setFetchError('No access token found. Please login.');
-          setIsLoading(false);
-          return;
-        }
-
-        const response = await fetch(`http://localhost:8000/exams/${examId}/questions-with-details/`, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-
-        if (!response.ok) {
-          const message = `Failed to fetch exam questions: ${response.status} ${response.statusText}`;
-          setFetchError(message);
-          setIsLoading(false);
-          return;
-        }
-
-        const data = await response.json();
-
-        // Map response to examData format expected
-        const questions = data.map((q, index) => {
-          const questionDetail = q.question;
-
-          return {
-            id: questionDetail.id,
-            title: questionDetail.title || "Untitled Question",
-            difficulty: questionDetail.difficulty ? 
-              questionDetail.difficulty.charAt(0).toUpperCase() + questionDetail.difficulty.slice(1) : 
-              "Easy",
-            description: questionDetail.description || "",
-            problem_statement: questionDetail.problem_statement || "",
-            example: extractExampleFromProblemStatement(questionDetail.problem_statement) || "",
-            testCases: [], // no test cases info from API
-            points: q.points || 1,
-            order: q.question_order || index
-          };
-        });
-
-        // Sort questions by order
-        questions.sort((a, b) => a.order - b.order);
-
-        setExamData({
-          id: 'e394cbe9-ba85-42f1-a576-7675229063cf',
-          title: 'Programming Exam',
-          duration: 120, // fallback duration in minutes
-          totalQuestions: questions.length,
-          currentQuestion: 0,
-          questions: questions
-        });
-        
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Failed to fetch exam data:', error);
-        setFetchError('Failed to fetch exam questions. Please check your connection and try again.');
-        setIsLoading(false);
-      }
-    }
-
-    fetchExamData();
-  }, []);
-
-  // Helper to extract example from problem_statement HTML string
-  function extractExampleFromProblemStatement(html) {
-    if (!html) return "";
-    
-    try {
-      // Try to extract content between <h3>Example</h3> and <pre> tags
-      const exampleMatch = html.match(/<h3>Example<\/h3>\s*<pre[^>]*>([\s\S]*?)<\/pre>/i);
-      if (exampleMatch) {
-        return exampleMatch[1].trim();
-      }
-      
-      // Alternative: look for any <pre> tag content
-      const preMatch = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
-      if (preMatch) {
-        return preMatch[1].trim();
-      }
-      
-      return "";
-    } catch (error) {
-      console.warn('Error extracting example:', error);
-      return "";
-    }
-  }
 
   // Auto-save function
   const performAutoSave = useCallback(async () => {
-    if (!hasUnsavedChanges || !examData) return;
+    if (!hasUnsavedChanges || !currentQuestion || isCurrentQuestionSubmitted) {
+      return;
+    }
+
 
     setAutoSaveStatus('saving');
     
     try {
-      const currentQuestion = examData.questions[currentQuestionIndex];
       const updatedSavedAnswers = {
         ...savedAnswers,
-        [currentQuestion?.id]: code
+        [currentQuestion.id]: code
       };
+      
       setSavedAnswers(updatedSavedAnswers);
-
-      const success = persistState({
-        savedAnswers: updatedSavedAnswers,
-        lastSavedTime: Date.now()
-      });
-
+      
+      const success = persistState({ savedAnswers: updatedSavedAnswers });
+      
       if (success) {
         setAutoSaveStatus('saved');
-        setLastSavedTime(Date.now());
         setHasUnsavedChanges(false);
-
         setTimeout(() => setAutoSaveStatus('idle'), 2000);
+      } else {
+        setAutoSaveStatus('error');
+        setTimeout(() => setAutoSaveStatus('idle'), 3000);
       }
     } catch (error) {
       console.error('Auto-save failed:', error);
       setAutoSaveStatus('error');
       setTimeout(() => setAutoSaveStatus('idle'), 3000);
     }
-  }, [code, currentQuestionIndex, savedAnswers, hasUnsavedChanges, persistState, examData]);
+  }, [hasUnsavedChanges, currentQuestion, isCurrentQuestionSubmitted, savedAnswers, code, persistState]);
+
 
   // Debounced auto save
   const debouncedAutoSave = useCallback(() => {
@@ -301,198 +245,434 @@ const Student_UI = () => {
     saveTimeoutRef.current = setTimeout(performAutoSave, SAVE_DEBOUNCE_DELAY);
   }, [performAutoSave]);
 
-  // Set auto-save interval
+
+  // Extract example from HTML
+  const extractExampleFromProblemStatement = useCallback((html) => {
+    if (!html) return "";
+    try {
+      const exampleMatch = html.match(/<h3>Example<\/h3>\s*<pre[^>]*>([\s\S]*?)<\/pre>/i);
+      if (exampleMatch) return exampleMatch[1].trim();
+      const preMatch = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+      if (preMatch) return preMatch[1].trim();
+      return "";
+    } catch {
+      return "";
+    }
+  }, []);
+
+
+  // Handle submit exam
+  const handleSubmitExam = useCallback(async () => {
+    // Clear timer first to prevent multiple submissions
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    await performAutoSave();
+    localStorage.removeItem(storageKey);
+    toast.success("Exam Submitted Successfully", {
+      description: "Your exam has been submitted.",
+    });
+    // Mock navigation
+    console.log('Navigating to results page');
+  }, [performAutoSave, storageKey]);
+
+
+  // Parse date string to timestamp safely
+  const parseDateTime = useCallback((dateTimeString) => {
+    if (!dateTimeString) return null;
+    
+    try {
+      // Handle different date formats
+      let date;
+      
+      // If it's already a timestamp
+      if (typeof dateTimeString === 'number') {
+        return dateTimeString;
+      }
+      
+      // If it's an ISO string or standard date format
+      date = new Date(dateTimeString);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid date format:', dateTimeString);
+        return null;
+      }
+      
+      return date.getTime();
+    } catch (error) {
+      console.error('Error parsing date:', dateTimeString, error);
+      return null;
+    }
+  }, []);
+
+
+  // Fetch exam data - only runs once when examId changes
   useEffect(() => {
+    let isMounted = true;
+
+
+    const fetchExamData = async () => {
+      if (!examId || isInitializedRef.current) return;
+
+
+      try {
+        setIsLoading(true);
+        setFetchError(null);
+        
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          if (isMounted) {
+            setFetchError('No access token found. Please login.');
+            setIsLoading(false);
+          }
+          return;
+        }
+
+
+        // Fetch questions and exam details in parallel
+        const [questionsResponse, examResponse] = await Promise.all([
+          fetch(`http://localhost:8000/exams/${examId}/questions-with-details/`, {
+            headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
+          }),
+          fetch(`http://localhost:8000/exams/${examId}/`, {
+            headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
+          })
+        ]);
+
+
+        if (!questionsResponse.ok) {
+          throw new Error(`Failed to fetch questions: ${questionsResponse.status}`);
+        }
+
+
+        const questionsData = await questionsResponse.json();
+        let examDetails = { 
+          duration: 120, 
+          title: 'Programming Exam',
+          start_time: null,
+          end_time: null
+        };
+        
+        if (examResponse.ok) {
+          examDetails = await examResponse.json();
+        }
+
+
+        if (!isMounted) return; // Component unmounted
+
+
+        // Process questions data
+        const questions = questionsData
+          .map((q, index) => ({
+            id: q.question.id,
+            title: q.question.title || "Untitled Question",
+            difficulty: q.question.difficulty ? 
+              q.question.difficulty.charAt(0).toUpperCase() + q.question.difficulty.slice(1) : 
+              "Easy",
+            description: q.question.description || "",
+            problem_statement: q.question.problem_statement || "",
+            example: extractExampleFromProblemStatement(q.question.problem_statement),
+            testCases: [],
+            points: q.points || 1,
+            order: q.question_order || index
+          }))
+          .sort((a, b) => a.order - b.order);
+
+
+        const examDataObject = {
+          id: examId,
+          title: examDetails.title,
+          duration: examDetails.duration,
+          startTime: examDetails.start_time,
+          endTime: examDetails.end_time,
+          totalQuestions: questions.length,
+          questions
+        };
+
+
+        setExamData(examDataObject);
+
+
+        // Calculate exam end time with better error handling
+        let examEndTime;
+        
+        console.log('Exam details:', {
+          start_time: examDetails.start_time,
+          end_time: examDetails.end_time,
+          duration: examDetails.duration,
+          savedEndTime: initialState.examEndTime
+        });
+        
+        // Priority 1: Use saved exam end time from previous session
+        if (initialState.examEndTime && typeof initialState.examEndTime === 'number') {
+          examEndTime = initialState.examEndTime;
+          console.log('Using saved end time:', new Date(examEndTime));
+        } 
+        // Priority 2: Use explicit end time from backend
+        else if (examDetails.end_time) {
+          examEndTime = parseDateTime(examDetails.end_time);
+          if (examEndTime) {
+            console.log('Using backend end time:', new Date(examEndTime));
+          }
+        }
+        // Priority 3: Calculate from start time + duration
+        else if (examDetails.start_time) {
+          const startTime = parseDateTime(examDetails.start_time);
+          if (startTime) {
+            examEndTime = startTime + (examDetails.duration * 60 * 1000);
+            console.log('Calculated end time from start + duration:', new Date(examEndTime));
+          }
+        }
+        
+        // Fallback: Start exam now with duration
+        if (!examEndTime) {
+          const now = Date.now();
+          examEndTime = now + (examDetails.duration * 60 * 1000);
+          console.log('Using fallback end time (now + duration):', new Date(examEndTime));
+        }
+        
+        examEndTimeRef.current = examEndTime;
+        
+        // Calculate initial time remaining
+        const initialTimeRemaining = calculateTimeRemaining();
+        console.log('Initial time remaining (seconds):', initialTimeRemaining);
+        
+        setTimeLeft(initialTimeRemaining);
+        
+        // If exam has already ended, submit automatically
+        if (initialTimeRemaining <= 0) {
+          console.log('Exam time has expired, auto-submitting');
+          handleSubmitExam();
+          return;
+        }
+
+
+        isInitializedRef.current = true;
+        setIsLoading(false);
+
+
+      } catch (error) {
+        console.error('Failed to fetch exam data:', error);
+        if (isMounted) {
+          setFetchError('Failed to fetch exam questions. Please try again.');
+          setIsLoading(false);
+        }
+      }
+    };
+
+
+    fetchExamData();
+
+
+    return () => {
+      isMounted = false;
+    };
+  }, [examId, initialState, extractExampleFromProblemStatement, calculateTimeRemaining, handleSubmitExam, parseDateTime]);
+
+
+  // Timer effect - updates every second with better error handling
+  useEffect(() => {
+    if (!examEndTimeRef.current || timeLeft === null || timeLeft <= 0) return;
+
+
+    // Update timer immediately and then every second
+    const updateTimer = () => {
+      const remaining = calculateTimeRemaining();
+      
+      console.log('Timer update - remaining seconds:', remaining);
+      setTimeLeft(remaining);
+      
+      // Auto-submit when time runs out
+      if (remaining <= 0) {
+        console.log('Timer expired, submitting exam');
+        handleSubmitExam();
+        return;
+      }
+    };
+
+
+    timerRef.current = setInterval(updateTimer, 1000);
+
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [calculateTimeRemaining, handleSubmitExam, timeLeft]);
+
+
+  // Auto-save interval effect
+  useEffect(() => {
+    if (!examData) return;
+
+
     autoSaveIntervalRef.current = setInterval(() => {
-      if (hasUnsavedChanges && examData) {
+      if (hasUnsavedChanges) {
         performAutoSave();
       }
     }, AUTO_SAVE_INTERVAL);
 
+
     return () => {
       if (autoSaveIntervalRef.current) {
         clearInterval(autoSaveIntervalRef.current);
+        autoSaveIntervalRef.current = null;
       }
     };
-  }, [performAutoSave, hasUnsavedChanges, examData]);
+  }, [examData, hasUnsavedChanges, performAutoSave]);
 
-  // Track code change for auto-save
+
+  // Code change tracking
   useEffect(() => {
-    if (lastCodeRef.current !== code) {
+    if (lastCodeRef.current !== code && lastCodeRef.current !== '') {
       setHasUnsavedChanges(true);
-      lastCodeRef.current = code;
       debouncedAutoSave();
     }
+    lastCodeRef.current = code;
   }, [code, debouncedAutoSave]);
 
-  // Persist state on any change
-  useEffect(() => {
-    if (examData) {
-      persistState();
-    }
-  }, [persistState, examData]);
-
-  // Handle browser unload
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      if (hasUnsavedChanges) {
-        performAutoSave();
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasUnsavedChanges, performAutoSave]);
-
-  // Timer countdown
-  useEffect(() => {
-    if (!examData) return;
-    
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          handleSubmitExam();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [examData]);
 
   // Load saved answer when question changes
   useEffect(() => {
-    if (!examData) return;
-    
-    const currentQuestion = examData.questions[currentQuestionIndex];
     if (!currentQuestion) return;
     
     const savedCode = savedAnswers[currentQuestion.id];
     if (savedCode !== undefined) {
       setCode(savedCode);
-      setHasUnsavedChanges(false);
+      lastCodeRef.current = savedCode;
     } else {
-      setCode(getStarterCode(language));
-      setHasUnsavedChanges(false);
+      const starterCode = starterCodeTemplates[language] || starterCodeTemplates.javascript;
+      setCode(starterCode);
+      lastCodeRef.current = starterCode;
     }
-  }, [currentQuestionIndex, savedAnswers, examData, language]);
+    setHasUnsavedChanges(false);
+  }, [currentQuestion, savedAnswers, language, starterCodeTemplates]);
 
-  // Update code when language changes
+
+  // Persist state on changes (debounced)
   useEffect(() => {
-    if (!examData) return;
+    if (!examData || timeLeft === null) return;
     
-    const currentQuestion = examData.questions[currentQuestionIndex];
-    if (!currentQuestion) return;
+    const timeoutId = setTimeout(() => {
+      persistState();
+    }, 1000);
 
-    if (!savedAnswers[currentQuestion.id]) {
-      setCode(getStarterCode(language));
-      setHasUnsavedChanges(false);
-    }
-  }, [language, currentQuestionIndex, savedAnswers, examData]);
 
-  // Handle submit answer
-  const handleSubmitAnswer = async () => {
-    if (!examData) return;
+    return () => clearTimeout(timeoutId);
+  }, [examData, persistState]);
+
+
+  // Handle browser unload
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges) {
+        persistState();
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges, persistState]);
+
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (autoSaveIntervalRef.current) clearInterval(autoSaveIntervalRef.current);
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, []);
+
+
+  // Event handlers
+  const handleSubmitAnswer = useCallback(async () => {
+    if (!currentQuestion || isCurrentQuestionSubmitted) return;
     
     await performAutoSave();
     
-    const currentQuestion = examData.questions[currentQuestionIndex];
-    if (!currentQuestion) return;
-
     const updatedSubmittedAnswers = {
       ...submittedAnswers,
       [currentQuestion.id]: code
     };
+    
     setSubmittedAnswers(updatedSubmittedAnswers);
     persistState({ submittedAnswers: updatedSubmittedAnswers });
+
 
     toast.success("Answer Submitted", {
       description: `Your answer for "${currentQuestion.title}" has been submitted successfully.`,
     });
-  };
+  }, [currentQuestion, isCurrentQuestionSubmitted, submittedAnswers, code, performAutoSave, persistState]);
 
-  // Handle submit full exam
-  const handleSubmitExam = async () => {
+
+  const handleNextQuestion = useCallback(async () => {
+    if (!examData || currentQuestionIndex >= examData.questions.length - 1) return;
     await performAutoSave();
+    setCurrentQuestionIndex(prev => prev + 1);
+  }, [examData, currentQuestionIndex, performAutoSave]);
 
-    localStorage.removeItem(STORAGE_KEY);
 
-    toast.success("Exam Submitted Successfully", {
-      description: "Your exam has been submitted. You will be redirected to the results page.",
-    });
+  const handlePrevQuestion = useCallback(async () => {
+    if (currentQuestionIndex <= 0) return;
+    await performAutoSave();
+    setCurrentQuestionIndex(prev => prev - 1);
+  }, [currentQuestionIndex, performAutoSave]);
 
-    navigate('/student/results');
-  };
 
-  // Mock navigate
-  const navigate = (path) => {
-    console.log(`Navigating to: ${path}`);
-    alert(`Demo: Would navigate to ${path}`);
-  };
+  const handleLanguageChange = useCallback((newLanguage) => {
+    setLanguage(newLanguage);
+    if (currentQuestion && !savedAnswers[currentQuestion.id]) {
+      const starterCode = starterCodeTemplates[newLanguage] || starterCodeTemplates.javascript;
+      setCode(starterCode);
+      lastCodeRef.current = starterCode;
+    }
+  }, [currentQuestion, savedAnswers, starterCodeTemplates]);
 
-  // Format time
-  const formatTime = (seconds) => {
+
+  // Utility functions - Fixed time formatting
+  const formatTime = useCallback((seconds) => {
+    // Ensure seconds is a valid number
+    if (typeof seconds !== 'number' || isNaN(seconds) || seconds < 0) {
+      return '00:00:00';
+    }
+    
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
+    
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  }, []);
 
-  const getTimeColor = () => {
-    if (timeLeft < 600) return 'text-red-500';
-    if (timeLeft < 1800) return 'text-yellow-500';
+
+  const getTimeColor = useCallback(() => {
+    if (timeLeft === null || typeof timeLeft !== 'number') return 'text-muted-foreground';
+    if (timeLeft < 600) return 'text-red-500'; // Less than 10 minutes
+    if (timeLeft < 1800) return 'text-yellow-500'; // Less than 30 minutes
     return 'text-green-500';
-  };
+  }, [timeLeft]);
 
-  // Navigation handlers
-  const handleNextQuestion = async () => {
-    await performAutoSave();
-    if (currentQuestionIndex < examData.questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    }
-  };
 
-  const handlePrevQuestion = async () => {
-    await performAutoSave();
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
-    }
-  };
-
-  const getAnsweredQuestionsCount = () => {
-    return Object.keys(submittedAnswers).length;
-  };
-
-  const getCompletionPercentage = () => {
-    if (!examData) return 0;
-    return (getAnsweredQuestionsCount() / examData.questions.length) * 100;
-  };
-
-  const getDifficultyVariant = (difficulty) => {
+  const getDifficultyVariant = useCallback((difficulty) => {
     switch (difficulty) {
       case 'Easy': return 'default';
       case 'Medium': return 'secondary';
       case 'Hard': return 'destructive';
       default: return 'default';
     }
-  };
+  }, []);
 
-  const getStarterCode = (lang) => {
-    const templates = {
-      javascript: '// Write your JavaScript code here...\n// Function signature will be provided\n\nfunction solution() {\n    \n}',
-      python: '# Write your Python code here...\n# Function signature will be provided\n\ndef solution():\n    pass',
-      java: '// Write your Java code here...\n// Class and method signatures will be provided\n\npublic class Solution {\n    \n}',
-      cpp: '// Write your C++ code here...\n// Function signature will be provided\n\n#include <iostream>\nusing namespace std;\n\nint main() {\n    return 0;\n}',
-      c: '// Write your C code here...\n// Function signature will be provided\n\n#include <stdio.h>\n\nint main() {\n    return 0;\n}'
-    };
-    return templates[lang] || templates.javascript;
-  };
 
   // Auto-save badge component
-  const getAutoSaveBadge = () => {
+  const autoSaveBadge = useMemo(() => {
     const badges = {
       idle: null,
       saving: (
@@ -515,19 +695,8 @@ const Student_UI = () => {
       )
     };
     return badges[autoSaveStatus];
-  };
+  }, [autoSaveStatus]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (autoSaveIntervalRef.current) {
-        clearInterval(autoSaveIntervalRef.current);
-      }
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, []);
 
   // Loading state
   if (isLoading) {
@@ -540,6 +709,7 @@ const Student_UI = () => {
       </div>
     );
   }
+
 
   // Error state
   if (fetchError) {
@@ -557,7 +727,8 @@ const Student_UI = () => {
     );
   }
 
-  if (!examData || !examData.questions.length) {
+
+  if (!examData?.questions?.length) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background text-foreground">
         <div className="text-center">
@@ -567,14 +738,11 @@ const Student_UI = () => {
     );
   }
 
-  const currentQuestion = examData.questions[currentQuestionIndex];
-  const isCurrentQuestionSubmitted = submittedAnswers.hasOwnProperty(currentQuestion.id);
-  const isCurrentQuestionReadOnly = isCurrentQuestionSubmitted;
 
   return (
     <div className="h-screen w-screen flex flex-col bg-background text-foreground">
       {/* Header Section */}
-      <div className="flex justify-between items-center p-4 border-b bg-card">
+      <header className="flex justify-between items-center p-4 border-b bg-card">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-bold">{examData.title}</h1>
           <Badge variant="outline">
@@ -583,21 +751,18 @@ const Student_UI = () => {
         </div>
         
         <div className="flex items-center gap-6">
-          {/* Theme Toggle Button */}
+          {/* Theme Toggle */}
           <Button 
             variant="outline" 
             size="icon" 
             onClick={toggleTheme}
             className="h-9 w-9"
+            aria-label="Toggle theme"
           >
-            {theme === 'light' ? (
-              <Moon className="h-4 w-4" />
-            ) : (
-              <Sun className="h-4 w-4" />
-            )}
+            {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </Button>
           
-          {/* Timer Display */}
+          {/* Timer */}
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
             <span className={`font-mono text-lg font-bold ${getTimeColor()}`}>
@@ -605,16 +770,17 @@ const Student_UI = () => {
             </span>
           </div>
           
-          {/* Progress Indicator */}
+          {/* Progress */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Progress:</span>
-            <Progress value={getCompletionPercentage()} className="w-20" />
+            <Progress value={completionPercentage} className="w-20" />
             <span className="text-sm font-medium">
-              {getAnsweredQuestionsCount()}/{examData.questions.length}
+              {answeredQuestionsCount}/{examData.questions.length}
             </span>
           </div>
 
-          {/* Submit Button with Confirmation Dialog */}
+
+          {/* Submit Button */}
           <AlertDialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" className="gap-2">
@@ -629,7 +795,7 @@ const Student_UI = () => {
                   Submit Exam?
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  You have answered {getAnsweredQuestionsCount()} out of {examData.questions.length} questions.
+                  You have answered {answeredQuestionsCount} out of {examData.questions.length} questions.
                   This action cannot be undone. Are you sure you want to submit your exam?
                 </AlertDialogDescription>
               </AlertDialogHeader>
@@ -642,24 +808,25 @@ const Student_UI = () => {
             </AlertDialogContent>
           </AlertDialog>
         </div>
-      </div>
+      </header>
 
-      {/* Main Content Area */}
-      <div className="flex-1 p-4">
+
+      {/* Main Content */}
+      <main className="flex-1 p-4">
         <ResizablePanelGroup direction="horizontal" className="h-full rounded-lg border">
-          {/* Question Panel - Left Side */}
+          {/* Question Panel */}
           <ResizablePanel defaultSize={40} minSize={30}>
             <div className="h-full p-6 overflow-auto">
               <Card className="h-full">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2">
-                      {currentQuestion.title}
-                      <Badge variant={getDifficultyVariant(currentQuestion.difficulty)}>
-                        {currentQuestion.difficulty}
+                      {currentQuestion?.title}
+                      <Badge variant={getDifficultyVariant(currentQuestion?.difficulty)}>
+                        {currentQuestion?.difficulty}
                       </Badge>
                     </CardTitle>
-                    {isCurrentQuestionReadOnly && (
+                    {isCurrentQuestionSubmitted && (
                       <Badge variant="destructive" className="gap-1">
                         <FileCheck className="h-3 w-3" />
                         Submitted
@@ -668,24 +835,22 @@ const Student_UI = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Question Description */}
                   <div>
-                    {currentQuestion.description && (
+                    {currentQuestion?.description && (
                       <div className="mb-4">
                         <p>{currentQuestion.description}</p>
                       </div>
                     )}
                     
-                    {/* Problem Statement as HTML */}
-                    {currentQuestion.problem_statement && (
+                    {currentQuestion?.problem_statement && (
                       <div 
                         className="mb-4 prose dark:prose-invert max-w-none"
                         dangerouslySetInnerHTML={{ __html: currentQuestion.problem_statement }} 
                       />
                     )}
 
-                    {/* Example Section */}
-                    {currentQuestion.example && (
+
+                    {currentQuestion?.example && (
                       <div className="bg-muted p-4 rounded-lg">
                         <strong>Example:</strong>
                         <pre className="mt-2 whitespace-pre-wrap text-sm">
@@ -695,7 +860,8 @@ const Student_UI = () => {
                     )}
                   </div>
 
-                  {/* Question Navigation */}
+
+                  {/* Navigation */}
                   <div className="flex justify-between pt-4">
                     <Button 
                       variant="outline" 
@@ -717,30 +883,31 @@ const Student_UI = () => {
             </div>
           </ResizablePanel>
 
+
           <ResizableHandle withHandle />
 
-          {/* Code Editor Panel - Right Side */}
+
+          {/* Code Editor Panel */}
           <ResizablePanel defaultSize={60} minSize={40}>
             <div className="h-full flex flex-col p-2 gap-2">
               {/* Editor Header */}
               <div className="flex items-center justify-between p-2 border-b">
                 <div className="flex items-center gap-2">
                   <Label>Your Solution:</Label>
-                  {/* Save Status Badges */}
-                  {isCurrentQuestionReadOnly ? (
+                  {isCurrentQuestionSubmitted ? (
                     <Badge variant="destructive" className="gap-1">
                       <FileCheck className="h-3 w-3" />
                       Submitted (Read-only)
                     </Badge>
                   ) : (
                     <>
-                      {savedAnswers[currentQuestion.id] && (
+                      {currentQuestion && savedAnswers[currentQuestion.id] && (
                         <Badge variant="secondary" className="gap-1">
                           <FileCheck className="h-3 w-3" />
                           Saved
                         </Badge>
                       )}
-                      {getAutoSaveBadge()}
+                      {autoSaveBadge}
                       {hasUnsavedChanges && autoSaveStatus === 'idle' && (
                         <Badge variant="outline" className="gap-1 text-yellow-600">
                           <Save className="h-3 w-3" />
@@ -750,11 +917,12 @@ const Student_UI = () => {
                     </>
                   )}
                 </div>
+                
                 {/* Language Selector */}
                 <Select 
                   value={language} 
-                  onValueChange={setLanguage}
-                  disabled={isCurrentQuestionReadOnly}
+                  onValueChange={handleLanguageChange}
+                  disabled={isCurrentQuestionSubmitted}
                 >
                   <SelectTrigger className="w-[140px]">
                     <SelectValue />
@@ -769,38 +937,46 @@ const Student_UI = () => {
                 </Select>
               </div>
               
-              <Editor
-                height="500px"
-                theme={theme === 'dark' ? 'vs-dark' : 'light'}
-                language={language === "c" ? "cpp" : language}
-                value={code}
-                onChange={isCurrentQuestionReadOnly ? undefined : (val) => setCode(val || "")}
-                options={{
-                  fontSize: 14,
-                  minimap: { enabled: false },
-                  scrollBeyondLastLine: false,
-                  automaticLayout: true,
-                  autoClosingBrackets: "always",
-                  autoClosingQuotes: "always",
-                  formatOnType: true,
-                  formatOnPaste: true,
-                  readOnly: isCurrentQuestionReadOnly,
-                  domReadOnly: isCurrentQuestionReadOnly,
-                  cursorStyle: isCurrentQuestionReadOnly ? 'line-thin' : 'line',
-                }}
-              />
+              {/* Monaco Editor */}
+              <div className="flex-1">
+                <Editor
+                  height="100%"
+                  theme={theme === 'dark' ? 'vs-dark' : 'light'}
+                  language={language === "c" ? "cpp" : language}
+                  value={code}
+                  onChange={isCurrentQuestionSubmitted ? undefined : (val) => setCode(val || "")}
+                  options={{
+                    fontSize: 14,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    autoClosingBrackets: "always",
+                    autoClosingQuotes: "always",
+                    formatOnType: true,
+                    formatOnPaste: true,
+                    readOnly: isCurrentQuestionSubmitted,
+                    domReadOnly: isCurrentQuestionSubmitted,
+                    wordWrap: 'on',
+                    lineNumbers: 'on',
+                    renderWhitespace: 'selection',
+                    tabSize: 2,
+                    insertSpaces: true
+                  }}
+                />
+              </div>
 
-              {/* Action Buttons - Removed Reset Demo and Run Code */}
+
+              {/* Action Buttons */}
               <div className="flex justify-between gap-2 p-2 border-t">
                 <Button 
                   variant="outline" 
                   onClick={performAutoSave}
-                  disabled={autoSaveStatus === 'saving' || isCurrentQuestionReadOnly}
+                  disabled={autoSaveStatus === 'saving' || isCurrentQuestionSubmitted || !hasUnsavedChanges}
                 >
                   {autoSaveStatus === 'saving' ? 'Saving...' : 'Save Code'}
                 </Button>
                 
-                {isCurrentQuestionReadOnly ? (
+                {isCurrentQuestionSubmitted ? (
                   <Button 
                     disabled
                     className="gap-2 opacity-50 cursor-not-allowed"
@@ -812,6 +988,7 @@ const Student_UI = () => {
                   <Button 
                     onClick={handleSubmitAnswer}
                     className="gap-2"
+                    disabled={!code.trim()}
                   >
                     <FileCheck className="h-4 w-4" />
                     Submit Answer
@@ -821,9 +998,10 @@ const Student_UI = () => {
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>
-      </div>
+      </main>
     </div>
   );
 };
+
 
 export default Student_UI;
