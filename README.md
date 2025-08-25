@@ -77,22 +77,7 @@ ProctorAegis transforms online coding examinations with military-grade security 
 - 🐍 Python 3.11+
 - 📦 Node.js 18+
 
-### Lightning Fast Setup
-
-```bash
-# 1️⃣ Clone the fortress
-git clone https://github.com/yourusername/proctoraegis.git
-cd proctoraegis
-
-# 2️⃣ Launch with Docker magic ✨
-docker-compose up --build
-
-# 3️⃣ Access your platform
-# 🎓 Students: http://localhost:3000
-# 👨‍🏫 Teachers: http://localhost:3000/teacher
-# 🔧 Admin: http://localhost:3000/admin
-```
-
+⚡ Lightning Fast Setup
 <div align="center">
 
 **🎉 That's it! You're ready to conduct secure coding exams!**
@@ -124,7 +109,6 @@ docker-compose up --build
 | 🔒 Password Security | bcrypt Hashing | ✅ |
 | 🎭 Role-Based Access | RBAC Implementation | ✅ |
 | 🌐 CORS Protection | Configured Origins | ✅ |
-| 🔗 HTTPS Enforcement | SSL/TLS Required | ✅ |
 | 🛡️ SEB Integration | Secure Exam Browser | ✅ |
 | 📝 Audit Logging | All Actions Tracked | ✅ |
 | ⚡ Rate Limiting | Brute Force Protection | ✅ |
