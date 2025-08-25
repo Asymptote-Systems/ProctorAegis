@@ -13,6 +13,13 @@ class LeetCodeAPI:
     def __init__(self, api_url: str):
         self.api_url = api_url
         
+    def normalize_output(self, output: str) -> str:
+        """Normalize output by removing trailing whitespace including newlines"""
+        if not output:
+            return ""
+        # Remove trailing whitespace (spaces, tabs, newlines, carriage returns)
+        return output.rstrip()
+        
     async def submit_solution(self, source_code: str, language: str, test_cases: List[Dict]) -> Dict:
         """Submit solution to Judge0 and get LeetCode-style response"""
         try:
@@ -31,7 +38,7 @@ class LeetCodeAPI:
                             "source_code": source_code,
                             "language_id": language_id,
                             "stdin": test_case["input"],
-                            "expected_output": test_case["output"]
+                            # Don't send expected_output to Judge0
                         }
                         
                         # Submit to Judge0
@@ -43,11 +50,32 @@ class LeetCodeAPI:
                             if response.status in [200, 201]:
                                 result = await response.json()
                                 
-                                # Check if output matches expected
-                                actual_output = (result.get("stdout") or "").strip()
-                                expected_output = test_case["output"].strip()
+                                # Normalize outputs for comparison
+                                actual_output = self.normalize_output(result.get("stdout") or "")
+                                expected_output = self.normalize_output(test_case["output"])
                                 
-                                test_passed = actual_output == expected_output and result.get("status_id") == 3  # 3 = Accepted
+                                # FIXED: Get status_id correctly from nested status object
+                                status_obj = result.get("status", {})
+                                status_id = status_obj.get("id") if isinstance(status_obj, dict) else result.get("status_id")
+                                
+                                # Check if Judge0 executed successfully AND outputs match
+                                execution_success = status_id == 3  # 3 = Accepted execution
+                                outputs_match = actual_output == expected_output
+                                
+                                test_passed = execution_success and outputs_match
+                                
+                                # Debug logging 
+                                print(f"Test Case {i+1}:")
+                                print(f"  Raw stdout: {repr(result.get('stdout'))}")
+                                print(f"  Raw expected: {repr(test_case['output'])}")
+                                print(f"  Normalized actual: {repr(actual_output)}")
+                                print(f"  Normalized expected: {repr(expected_output)}")
+                                print(f"  Status object: {result.get('status')}")
+                                print(f"  Status ID: {status_id}")
+                                print(f"  Execution success: {execution_success}")
+                                print(f"  Outputs match: {outputs_match}")
+                                print(f"  Test passed: {test_passed}")
+                                print("-" * 50)
                                 
                                 if test_passed:
                                     passed_tests += 1
@@ -57,8 +85,8 @@ class LeetCodeAPI:
                                     "passed": test_passed,
                                     "expected": expected_output,
                                     "actual": actual_output,
-                                    "status_id": result.get("status_id"),
-                                    "status": result.get("status", {}).get("description", "Unknown"),
+                                    "status_id": status_id,
+                                    "status": status_obj.get("description") if isinstance(status_obj, dict) else "Unknown",
                                     "time": result.get("time"),
                                     "memory": result.get("memory"),
                                     "stderr": result.get("stderr"),
@@ -128,6 +156,7 @@ class LeetCodeAPI:
                 "total_testcases": len(test_cases),
                 "test_results": []
             }
+
     
     def get_language_id(self, language: str) -> int:
         """Map language string to Judge0 language ID"""
@@ -141,9 +170,12 @@ class LeetCodeAPI:
         }
         return language_map.get(language.lower(), 71)
 
+
+    
+
 class SubmissionProcessor:
     def __init__(self):
-        self.judge0_api_url = "http://192.168.0.109:2358/"
+        self.judge0_api_url = "http://11.12.2.212:2358/"
         self.processing_jobs = {}
         self.leetcode_api = LeetCodeAPI(self.judge0_api_url)
         

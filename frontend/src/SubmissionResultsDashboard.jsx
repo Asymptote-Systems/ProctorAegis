@@ -22,7 +22,7 @@ import {
   Timer,
   MemoryStick
 } from 'lucide-react';
-import api from '../api/apiClient';
+import api from './api/apiClient';
 
 const SubmissionResultsDashboard = ({ examId }) => {
   const [submissions, setSubmissions] = useState([]);

@@ -3,7 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SubmissionProcessor } from './components/SubmissionProcessor';
+import SubmissionResultsDashboard from './SubmissionResultsDashboard';
 import api from './api/apiClient'; // Import your API client
 
 const ExamManagementPage = () => {
@@ -69,13 +71,13 @@ const ExamManagementPage = () => {
 
   // Rest of your component remains the same...
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
+    <div className="container mx-auto p-6 max-w-6xl">
       <div className="space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">Exam Management</h1>
           <p className="text-muted-foreground">
-            Process and manage exam submissions
+            Process submissions and view results
           </p>
         </div>
 
@@ -131,113 +133,50 @@ const ExamManagementPage = () => {
         </Card>
 
         {/* Exam Info Display */}
-        {examInfo && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Exam Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {examInfo.error ? (
-                <div className="text-red-500 space-y-2">
-                  <p className="font-semibold">Error Loading Exam</p>
-                  <p className="text-sm">{examInfo.error}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Make sure the exam ID exists and the API is running
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="text-center p-4 border rounded-lg">
-                      <div className="text-2xl font-bold text-blue-600">
-                        {examInfo.submissionsCount}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Total Submissions
-                      </div>
-                    </div>
-                    
-                    <div className="text-center p-4 border rounded-lg">
-                      <div className="text-2xl font-bold text-green-600">
-                        {examInfo.submissions?.filter(s => s.status === 'completed').length || 0}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Completed
-                      </div>
-                    </div>
-                    
-                    <div className="text-center p-4 border rounded-lg">
-                      <div className="text-2xl font-bold text-orange-600">
-                        {examInfo.submissions?.filter(s => s.status === 'pending').length || 0}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Pending
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p><strong>Exam ID:</strong> {examInfo.id}</p>
-                    <p><strong>Loaded at:</strong> {new Date().toLocaleString()}</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Submission Processor */}
+        {/* Main Content with Tabs */}
         {examInfo && !examInfo.error && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Process Submissions</CardTitle>
-              <CardDescription>
-                Run all submissions through Judge0 and calculate scores
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {examInfo.submissionsCount > 0 ? (
-                <div className="space-y-4">
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-sm text-blue-800">
-                      <strong>Ready to process {examInfo.submissionsCount} submissions</strong>
-                    </p>
-                    <p className="text-xs text-blue-600 mt-1">
-                      This will test each submission against their respective test cases and create submission results.
-                    </p>
-                  </div>
-                  
-                  <SubmissionProcessor examId={examId} />
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>No submissions found for this exam.</p>
-                  <p className="text-sm mt-1">
-                    Make sure students have submitted their solutions.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <Tabs defaultValue="process" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="process">Process Submissions</TabsTrigger>
+              <TabsTrigger value="results">View Results</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="process" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Process Submissions</CardTitle>
+                  <CardDescription>
+                    Run all submissions through Judge0 and calculate scores
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {examInfo.submissionsCount > 0 ? (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-sm text-blue-800">
+                          <strong>Ready to process {examInfo.submissionsCount} submissions</strong>
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          This will test each submission against their respective test cases and create submission results.
+                        </p>
+                      </div>
+                      
+                      <SubmissionProcessor examId={examId} />
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p>No submissions found for this exam.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="results">
+              <SubmissionResultsDashboard examId={examId} />
+            </TabsContent>
+          </Tabs>
         )}
-
-        {/* Development Helper */}
-        <Card className="border-dashed">
-          <CardHeader>
-            <CardTitle className="text-sm">Development Helper</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p><strong>Sample Exam ID:</strong> e266ef67-1381-44f2-bf53-e3ce6e48db9c</p>
-              <p><strong>API Endpoints:</strong></p>
-              <ul className="list-disc list-inside ml-2 space-y-1">
-                <li>GET /exams/{'{exam_id}'}/submissions</li>
-                <li>POST /exams/{'{exam_id}'}/process-submissions</li>
-                <li>GET /processing-jobs/{'{job_id}'}/status</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
