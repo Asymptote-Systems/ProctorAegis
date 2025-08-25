@@ -50,14 +50,14 @@ def question_exists(db: Session, question_id: str) -> Optional[models.Question]:
     ).first()
 
 
-def parse_test_cases_from_input_output(input_output: list, sample_only: bool = True) -> list:
-    """Convert input_output format to test cases - ONLY SAMPLE TEST CASES"""
+def parse_test_cases_from_input_output(input_output: list) -> list:
+    """Convert input_output format to test cases - ONLY FIRST 3 (SAMPLE CASES)"""
     test_cases = []
-    
-    # Only process first 3 test cases as sample cases
-    sample_cases = input_output[:3] if sample_only else input_output
-    
-    for i, case in enumerate(sample_cases):
+    for i, case in enumerate(input_output):
+        # ONLY PROCESS FIRST 3 TEST CASES
+        if i >= 3:
+            break
+            
         # Handle missing or None output
         output = case.get("output", "")
         if output is None:
@@ -70,23 +70,20 @@ def parse_test_cases_from_input_output(input_output: list, sample_only: bool = T
         test_cases.append({
             "input": case.get("input", ""),
             "output": str(output),  # Ensure it's a string
-            "is_example": True,  # All imported test cases are sample/example cases
-            "is_sample": True,   # Mark as sample
-            "is_hidden": False   # Sample cases are not hidden
+            "is_example": True  # ALL IMPORTED CASES ARE SAMPLE/EXAMPLE CASES
         })
-    
     return test_cases
 
 
 def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = False) -> Dict[str, Any]:
-    """Import from multiple JSONL files - ONLY SAMPLE TEST CASES"""
+    """Import from multiple JSONL files"""
     system_user = get_or_create_system_user(db)
     created = 0
     updated = 0
     test_cases_created = 0
     errors = []
     
-    # Batch processing variables
+    # ADD THIS NEAR THE TOP - Batch processing variables
     BATCH_SIZE = 100  # Process in batches
     batch_count = 0
 
@@ -121,10 +118,10 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
                         primary_tag = tags[0] if tags else 'array'
                         category = ensure_category(db, primary_tag)
 
-                        # Parse ONLY SAMPLE test cases
-                        test_cases = parse_test_cases_from_input_output(input_output, sample_only=True)
+                        # Parse test cases BEFORE creating question - ONLY SAMPLE CASES
+                        test_cases = parse_test_cases_from_input_output(input_output)
                         
-                        # Skip questions with no valid sample test cases
+                        # Skip questions with no valid test cases
                         if not test_cases:
                             print(f"Skipping question {question_id} - no valid sample test cases")
                             continue
@@ -154,27 +151,35 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
                             db.add(existing)
                             db.flush()
 
-                            # Delete old test cases and add new sample ones
-                            for tc in existing.test_cases:
+                            # DELETE ONLY EXISTING SAMPLE TEST CASES, KEEP HIDDEN ONES
+                            existing_sample_cases = db.query(models.QuestionTestCase).filter(
+                                models.QuestionTestCase.question_id == existing.id,
+                                models.QuestionTestCase.is_sample == True
+                            ).all()
+                            
+                            for tc in existing_sample_cases:
                                 db.delete(tc)
                             db.flush()
 
-                            # Add ONLY sample test cases
+                            # Add new sample test cases
                             for tc_data in test_cases:
                                 tc = models.QuestionTestCase(
                                     question_id=existing.id,
                                     input_data=tc_data["input"],
                                     expected_output=tc_data["output"],
-                                    is_sample=True,  # Always sample
-                                    is_hidden=False,  # Never hidden
+                                    is_sample=True,  # SAMPLE CASE
+                                    is_hidden=False, # VISIBLE TO STUDENTS
                                     weight=1,
-                                    extra_data={"imported_from": "jsonl_human_eval", "type": "sample"}
+                                    extra_data={"imported_from": "jsonl_human_eval"}
                                 )
                                 db.add(tc)
                                 test_cases_created += 1
 
                             updated += 1
-                            
+                            batch_count += 1
+                            if batch_count % BATCH_SIZE == 0:
+                                db.commit()
+                                print(f"Committed batch at question {batch_count}")
                         else:
                             # Create new question
                             question = models.Question(
@@ -199,26 +204,25 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
                             db.add(question)
                             db.flush()  # Get the ID
 
-                            # Add ONLY sample test cases
+                            # Add ONLY SAMPLE test cases
                             for tc_data in test_cases:
                                 tc = models.QuestionTestCase(
                                     question_id=question.id,
                                     input_data=tc_data["input"],
                                     expected_output=tc_data["output"],
-                                    is_sample=True,  # Always sample
-                                    is_hidden=False,  # Never hidden
+                                    is_sample=True,  # SAMPLE CASE
+                                    is_hidden=False, # VISIBLE TO STUDENTS
                                     weight=1,
-                                    extra_data={"imported_from": "jsonl_human_eval", "type": "sample"}
+                                    extra_data={"imported_from": "jsonl_human_eval"}
                                 )
                                 db.add(tc)
                                 test_cases_created += 1
 
                             created += 1
-                            
-                        batch_count += 1
-                        if batch_count % BATCH_SIZE == 0:
-                            db.commit()  # Commit every 100 questions
-                            print(f"Committed batch at question {batch_count}")
+                            batch_count += 1
+                            if batch_count % BATCH_SIZE == 0:
+                                db.commit()
+                                print(f"Committed batch at question {batch_count}")
 
                     except json.JSONDecodeError as e:
                         print(f"JSON error in {file_path} line {line_no}: {e}")
@@ -240,12 +244,10 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
             errors.append(f"File error: {str(e)}")
             continue
 
-    # Final commit for remaining records
+    # ADD THIS AT THE END - Final commit for remaining records
     if batch_count % BATCH_SIZE != 0:
         db.commit()
         print(f"Final commit - total questions processed: {batch_count}")
-
-    print(f"Import Summary: Created {created} questions, Updated {updated} questions, Added {test_cases_created} sample test cases")
 
     return {
         "created": created,

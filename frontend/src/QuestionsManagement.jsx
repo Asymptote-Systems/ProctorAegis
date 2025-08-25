@@ -180,14 +180,23 @@ export default function QuestionsManagement() {
   // Load test cases for a specific question
   const loadTestCases = async (questionId) => {
     try {
-      const data = await apiCall(`/question-test-cases/?skip=0&limit=100`);
-      const filteredTestCases = Array.isArray(data) ? data.filter(tc => tc.question_id === questionId) : [];
-      setTestCases(filteredTestCases);
+      // Fetch test cases specifically for this question
+      const data = await apiCall(`/questions/${questionId}/test-cases/`);
+      setTestCases(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Failed to load test cases:', error);
-      setTestCases([]);
+      // If the specific endpoint doesn't exist, fall back to filtering
+      try {
+        const allData = await apiCall(`/question-test-cases/?skip=0&limit=1000`);
+        const filteredTestCases = Array.isArray(allData) ?
+          allData.filter(tc => tc.question_id === questionId) : [];
+        setTestCases(filteredTestCases);
+      } catch (fallbackError) {
+        console.error('Failed to load test cases:', fallbackError);
+        setTestCases([]);
+      }
     }
   };
+
 
   // Create or update question
   const handleQuestionSubmit = async () => {
@@ -926,7 +935,7 @@ export default function QuestionsManagement() {
                       checked={testCaseForm.is_hidden}
                       onCheckedChange={(checked) => setTestCaseForm(prev => ({ ...prev, is_hidden: checked }))}
                     />
-                    <Label htmlFor="isHidden">Hidden from Students</Label>
+                    <Label htmlFor="isHidden">Hidden Test case</Label>
                   </div>
                 </div>
 
