@@ -3,7 +3,14 @@
 
 <div align="center">
   
-![ProctorAegis Banner](https://via.placeholder.com/1200x400/1a1a1a/00d4aa?text=ProctorAegis+%F0%9F%9B%A1%EF%B8%8F)
+
+██████╗░██████╗░░█████╗░░█████╗░████████╗░█████╗░██████╗░░█████╗░███████╗░██████╗░██╗░██████╗
+██╔══██╗██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔════╝░██║██╔════╝
+██████╔╝██████╔╝██║░░██║██║░░╚═╝░░░██║░░░██║░░██║██████╔╝███████║█████╗░░██║░░██╗░██║╚█████╗░
+██╔═══╝░██╔══██╗██║░░██║██║░░██╗░░░██║░░░██║░░██║██╔══██╗██╔══██║██╔══╝░░██║░░╚██╗██║░╚═══██╗
+██║░░░░░██║░░██║╚█████╔╝╚█████╔╝░░░██║░░░╚█████╔╝██║░░██║██║░░██║███████╗╚██████╔╝██║██████╔╝
+╚═╝░░░░░╚═╝░░╚═╝░╚════╝░░╚════╝░░░░╚═╝░░░░╚════╝░╚═╝░░╚═╝╚═╝░░╚═╝╚══════╝░╚═════╝░╚═╝╚═════╝░
+                          🚀 ProctorAegis is LIVE! 🚀
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=FastAPI&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
@@ -70,19 +77,51 @@ ProctorAegis transforms online coding examinations with military-grade security 
 
 ---
 
-## 🚀 Quick Start
+## ⚡ Lightning Fast Setup
 
-### Prerequisites
-- 🐳 Docker & Docker Compose
-- 🐍 Python 3.11+
-- 📦 Node.js 18+
+```bash
+# 1️⃣ Clone the fortress 🏰
+git clone https://github.com/yourusername/proctoraegis.git
+cd proctoraegis
 
-⚡ Lightning Fast Setup
-<div align="center">
+# 2️⃣ Summon the magic wand ✨
+python manage.py start
+```
 
-**🎉 That's it! You're ready to conduct secure coding exams!**
+🎉 That’s it! Your platform comes alive automatically.
+No more complicated Docker incantations 🧙‍♂️.
 
-</div>
+---
+
+### 🌐 Where to Go?
+
+After startup, we’ll show you all the important portals in style:
+
+* 🎓 **Students:** [http://localhost:3000](http://localhost:3000)
+* 👩‍🏫 **Teachers:** [http://localhost:3000/teacher](http://localhost:3000/teacher)
+* 🛠️ **Admin Dashboard:** [http://localhost:3000/admin](http://localhost:3000/admin)
+
+---
+
+### 🛠️ Other Commands
+
+Make your life easier with simple, friendly spells 🪄:
+
+```bash
+python manage.py stop        # ⛔ Stop all services safely
+python manage.py restart     # 🔄 Restart everything fresh
+python manage.py reset-db    # 🧹 Reset the database (warning: wipes data!)
+python manage.py backup-db   # 💾 Save a DB backup
+python manage.py restore-db  # 📂 Restore a DB backup
+python manage.py status      # 📊 Check what’s running
+python manage.py update      # ⬆️ Update everything
+python manage.py clean       # 🧼 Remove old caches and images
+```
+
+---
+
+✨ **Bonus:**
+If you’re on Windows 👉 we’ll warn you that Judge0 can’t run there and gracefully skip it, while everything else still works smoothly.
 
 ---
 
