@@ -14,6 +14,8 @@ from backend.database import Base, engine, get_db, SessionLocal
 from backend import crud, schemas
 from backend.wait_for_db import wait_for_db
 from backend.auth.router import router as auth_router
+from .routers import submission_processing
+
 
 from backend.auth.dependencies import require_role, get_current_user
 from backend import models as dbmodels
@@ -44,13 +46,19 @@ async def set_security_headers(request: Request, call_next):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(auth_router)
+
+app.include_router(
+    submission_processing.router,
+    prefix="",
+    tags=["submission-processing"]
+)
 
 # --- Startup: wait for DB & create tables ---
 @app.on_event("startup")
@@ -345,6 +353,42 @@ def delete_question_test_case(test_case_id: UUID, db: Session = Depends(get_db))
         raise HTTPException(status_code=404, detail="Question test case not found")
     return db_test_case
 
+# Get all test cases for a specific question
+@app.get("/questions/{question_id}/test-cases/", response_model=List[schemas.QuestionTestCase])
+def read_test_cases_for_question(question_id: UUID, db: Session = Depends(get_db)):
+    test_cases = crud.get_test_cases_for_question(db, question_id=question_id)
+    if not test_cases:
+        raise HTTPException(status_code=404, detail="No test cases found for this question")
+    return test_cases
+
+# Update a test case
+@app.put("/question-test-cases/{test_case_id}", response_model=schemas.QuestionTestCase)
+def update_question_test_case(
+    test_case_id: UUID,
+    test_case: schemas.QuestionTestCaseUpdate,
+    db: Session = Depends(get_db),
+):
+    db_test_case = crud.get_question_test_case(db, id=test_case_id)
+    if not db_test_case:
+        raise HTTPException(status_code=404, detail="Question test case not found")
+    return crud.update_question_test_case(db=db, db_obj=db_test_case, obj_in=test_case)
+
+# Delete a test case
+@app.delete("/question-test-cases/{test_case_id}", response_model=schemas.QuestionTestCase)
+def delete_question_test_case(test_case_id: UUID, db: Session = Depends(get_db)):
+    db_test_case = crud.get_question_test_case(db, id=test_case_id)
+    if not db_test_case:
+        raise HTTPException(status_code=404, detail="Question test case not found")
+    return crud.delete_question_test_case(db, id=test_case_id)
+
+@app.delete("/questions/{question_id}/test-cases", response_model=List[schemas.QuestionTestCase])
+def delete_all_test_cases_for_question(question_id: UUID, db: Session = Depends(get_db)):
+    deleted_test_cases = crud.delete_test_cases_by_question(db=db, question_id=question_id)
+    if deleted_test_cases is None:
+        raise HTTPException(status_code=404, detail="No test cases found for this question")
+    return deleted_test_cases
+
+
 # Exam routes
 @app.get("/exams/", response_model=List[schemas.Exam])
 def read_exams(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -494,7 +538,7 @@ def create_submission(submission: schemas.SubmissionCreate, db: Session = Depend
         raise HTTPException(status_code=400, detail="No active exam session found for this exam")
 
     
-    return crud.create_submission(db=db, obj_in=submission, student_id=current_user.id, exam_session_id=exam_session.id)
+    return crud.create_submission(db=db, obj_in=submission, student_id=current_user.id)
 
 @app.put("/submissions/{submission_id}", response_model=schemas.Submission)
 def update_submission(submission_id: UUID, submission: schemas.SubmissionUpdate, db: Session = Depends(get_db)):

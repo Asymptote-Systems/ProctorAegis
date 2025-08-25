@@ -1,0 +1,46 @@
+# Ignore Python cache and venvs
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+.env
+.venv/
+venv/
+*.egg-info/
+dist/
+
+# Ignore Node.js dependencies and build outputs
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Ignore frontend build artifacts (if not needed inside the image)
+frontend/dist/
+frontend/node_modules/
+frontend/.vite/
+frontend/.turbo/
+frontend/.cache/
+
+# Ignore Docker stuff
+.dockerignore
+Dockerfile*
+docker-compose*.yml
+
+# Ignore Git stuff
+.git
+.gitignore
+
+# Ignore OS/editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
