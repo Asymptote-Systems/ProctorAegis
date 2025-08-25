@@ -90,8 +90,8 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(SQLEnum(UserRole), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -122,9 +122,9 @@ class UserSession(Base):
     session_token = Column(String(255), unique=True, nullable=False)
     ip_address = Column(INET)
     user_agent = Column(String(500))
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    expires_at = Column(DateTime(timezone=False), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -143,9 +143,9 @@ class UserToken(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     token_type = Column(String(50), nullable=False)
     token_hash = Column(String(255), unique=True, nullable=False)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
+    expires_at = Column(DateTime(timezone=False), nullable=False)
     is_revoked = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -167,8 +167,8 @@ class StudentProfile(Base):
     last_name = Column(String(100), nullable=False)
     phone = Column(String(20))
     emergency_contact = Column(JSONB, default=dict)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -189,8 +189,8 @@ class StudentExamQuestion(Base):
     question_order = Column(Integer, nullable=False)
     points = Column(Integer, default=0, nullable=False)
 
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
 
     # Relationships
@@ -215,8 +215,8 @@ class TeacherProfile(Base):
     last_name = Column(String(100), nullable=False)
     department = Column(String(100))
     designation = Column(String(100))
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -235,8 +235,8 @@ class QuestionCategory(Base):
     name = Column(String(100), unique=True, nullable=False)
     description = Column(Text)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -262,8 +262,8 @@ class Question(Base):
     max_score = Column(Integer, nullable=False)
     time_limit_seconds = Column(Integer, default=30)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -291,8 +291,8 @@ class QuestionTestCase(Base):
     is_sample = Column(Boolean, default=False, nullable=False)
     is_hidden = Column(Boolean, default=False, nullable=False)
     weight = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -311,16 +311,16 @@ class Exam(Base):
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     title = Column(String(255), nullable=False)
     description = Column(Text)
-    start_time = Column(DateTime(timezone=True), nullable=False)
-    end_time = Column(DateTime(timezone=True), nullable=False)
+    start_time = Column(DateTime(timezone=False), nullable=False)
+    end_time = Column(DateTime(timezone=False), nullable=False)
     duration_minutes = Column(Integer, nullable=False)
     exam_type = Column(SQLEnum(ExamType), nullable=False)
     shuffle_questions = Column(Boolean, default=False, nullable=False)
     max_attempts = Column(Integer, default=1, nullable=False)
     settings = Column(JSONB, default=dict)
     status = Column(SQLEnum(ExamStatus), default=ExamStatus.DRAFT, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -347,8 +347,8 @@ class ExamQuestion(Base):
     question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id"), nullable=False)
     question_order = Column(Integer, nullable=False)
     points = Column(Integer, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -369,11 +369,11 @@ class ExamRegistration(Base):
     exam_id = Column(UUID(as_uuid=True), ForeignKey("exams.id"), nullable=False)
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     status = Column(SQLEnum(RegistrationStatus), default=RegistrationStatus.PENDING, nullable=False)
-    registered_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    approved_at = Column(DateTime(timezone=True))
+    registered_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    approved_at = Column(DateTime(timezone=False))
     approved_by = Column(UUID(as_uuid=True), ForeignKey("users.id"))
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -395,14 +395,14 @@ class ExamSession(Base):
     exam_id = Column(UUID(as_uuid=True), ForeignKey("exams.id"), nullable=False)
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     session_token = Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False)
-    started_at = Column(DateTime(timezone=True))
-    ended_at = Column(DateTime(timezone=True))
-    last_activity_at = Column(DateTime(timezone=True))
+    started_at = Column(DateTime(timezone=False))
+    ended_at = Column(DateTime(timezone=False))
+    last_activity_at = Column(DateTime(timezone=False))
     status = Column(SQLEnum(SessionStatus), default=SessionStatus.ACTIVE, nullable=False)
     browser_info = Column(JSONB, default=dict)
     ip_address = Column(INET)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -430,10 +430,10 @@ class Submission(Base):
     source_code = Column(Text, nullable=False)
     language = Column(String(50), nullable=False)
     status = Column(SQLEnum(SubmissionStatus), default=SubmissionStatus.PENDING, nullable=False)
-    submitted_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    submitted_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
     attempt_number = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
 
     # Relationships
@@ -470,9 +470,9 @@ class SubmissionResult(Base):
     score = Column(Integer, default=0, nullable=False)
     max_score = Column(Integer, nullable=False)
     test_results = Column(JSONB, default=dict)
-    evaluated_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+    evaluated_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=False), default=func.now(), onupdate=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -491,7 +491,7 @@ class SubmissionEvent(Base):
     submission_id = Column(UUID(as_uuid=True), ForeignKey("submissions.id"), nullable=False)
     event_type = Column(SQLEnum(EventType), nullable=False)
     event_data = Column(JSONB, default=dict)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -510,7 +510,7 @@ class ExamEvent(Base):
     exam_session_id = Column(UUID(as_uuid=True), ForeignKey("exam_sessions.id"), nullable=False)
     event_type = Column(SQLEnum(EventType), nullable=False)
     event_data = Column(JSONB, default=dict)
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
@@ -535,7 +535,7 @@ class AuditLog(Base):
     new_values = Column(JSONB, default=dict)
     ip_address = Column(INET)
     user_agent = Column(String(500))
-    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=False), default=func.now(), nullable=False)
     extra_data = Column(JSONB, default=dict)
     
     # Relationships
