@@ -1,36 +1,29 @@
-// FILE: src/QuestionsManagement.jsx
-
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import HTMLEditor from './components/HTMLEditor';
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Search, 
-  Filter, 
-  BookOpen, 
-  Code, 
-  Eye, 
-  Save,
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Search,
+  Filter,
+  BookOpen,
   ArrowLeft,
   ArrowRight,
   TestTube,
   Tag,
-  X
+  Database
 } from "lucide-react";
 
 const API_BASE_URL = 'http://localhost:8000';
@@ -38,9 +31,8 @@ const API_BASE_URL = 'http://localhost:8000';
 // Utility function for API calls
 const apiCall = async (endpoint, options = {}) => {
   try {
-    // Get JWT token from localStorage or your auth system
-    const token = localStorage.getItem('access_token'); // Adjust based on your auth implementation
-    
+    const token = localStorage.getItem('access_token');
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers: {
         'Content-Type': 'application/json',
@@ -49,11 +41,11 @@ const apiCall = async (endpoint, options = {}) => {
       },
       ...options,
     });
-    
+
     if (!response.ok) {
       throw new Error(`API call failed: ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('API Error:', error);
@@ -79,7 +71,7 @@ export default function QuestionsManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isEditorFullScreen, setIsEditorFullScreen] = useState(false);
-  
+
   // Form states
   const [questionForm, setQuestionForm] = useState({
     title: '',
@@ -91,7 +83,7 @@ export default function QuestionsManagement() {
     category_id: '',
     extra_data: {}
   });
-  
+
   const [categoryForm, setCategoryForm] = useState({
     name: '',
     description: '',
@@ -110,7 +102,7 @@ export default function QuestionsManagement() {
 
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
-  const [currentStep, setCurrentStep] = useState(1); // For multi-step question creation
+  const [currentStep, setCurrentStep] = useState(1);
   const [selectedQuestionForTestCases, setSelectedQuestionForTestCases] = useState(null);
 
   // Load data on component mount
@@ -126,11 +118,43 @@ export default function QuestionsManagement() {
     }
   }, [currentStep]);
 
+  // Helper function to get tags (no more company tags)
+  const getTags = (question) => {
+    return question.extra_data?.tags || [];
+  };
+
+  // Import JSONL data function
+  const handleImportJSONLData = async () => {
+    setLoading(true);
+    try {
+      await apiCall('/admin/import-leetcode-jsonl/', {
+        method: 'POST',
+        body: JSON.stringify({
+          file_paths: [
+            'backend/LeetCodeDataset-v0.3.1-train.jsonl',
+          ],
+          overwrite: false
+        })
+      });
+
+      // Refresh data after import
+      await loadQuestions();
+      await loadCategories();
+
+      alert('LeetCode JSONL data imported successfully!');
+    } catch (error) {
+      console.error('Import failed:', error);
+      alert('Import failed. Please check console for details and ensure JSONL files are in the backend root directory.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Load questions from API
   const loadQuestions = async () => {
     setLoading(true);
     try {
-      const data = await apiCall('/questions/?skip=0&limit=100');
+      const data = await apiCall('/questions/?skip=0&limit=1000');
       setQuestions(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load questions:', error);
@@ -169,15 +193,14 @@ export default function QuestionsManagement() {
     try {
       const endpoint = editingQuestion ? `/questions/${editingQuestion.id}` : '/questions/';
       const method = editingQuestion ? 'PUT' : 'POST';
-      
+
       await apiCall(endpoint, {
         method,
         body: JSON.stringify(questionForm),
       });
-      
+
       await loadQuestions();
-      
-      // Close fullscreen immediately and reset everything
+
       setIsEditorFullScreen(false);
       setIsQuestionDialogOpen(false);
       resetQuestionForm();
@@ -194,12 +217,12 @@ export default function QuestionsManagement() {
     try {
       const endpoint = editingCategory ? `/question-categories/${editingCategory.id}` : '/question-categories/';
       const method = editingCategory ? 'PUT' : 'POST';
-      
+
       await apiCall(endpoint, {
         method,
         body: JSON.stringify(categoryForm),
       });
-      
+
       await loadCategories();
       resetCategoryForm();
       setIsCategoryDialogOpen(false);
@@ -218,7 +241,7 @@ export default function QuestionsManagement() {
         method: 'POST',
         body: JSON.stringify(testCaseForm),
       });
-      
+
       await loadTestCases(selectedQuestionForTestCases);
       resetTestCaseForm();
       setIsTestCaseDialogOpen(false);
@@ -232,7 +255,7 @@ export default function QuestionsManagement() {
   // Delete handlers
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    
+
     setLoading(true);
     try {
       if (deleteTarget.type === 'question') {
@@ -245,7 +268,7 @@ export default function QuestionsManagement() {
         await apiCall(`/question-test-cases/${deleteTarget.id}`, { method: 'DELETE' });
         await loadTestCases(selectedQuestionForTestCases);
       }
-      
+
       setDeleteDialogOpen(false);
       setDeleteTarget(null);
     } catch (error) {
@@ -269,7 +292,7 @@ export default function QuestionsManagement() {
     });
     setEditingQuestion(null);
     setCurrentStep(1);
-    setIsEditorFullScreen(false); // Reset fullscreen state
+    setIsEditorFullScreen(false);
   };
 
   const resetCategoryForm = () => {
@@ -337,10 +360,10 @@ export default function QuestionsManagement() {
   // Filter questions
   const filteredQuestions = questions.filter(question => {
     const matchesSearch = question.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         question.description?.toLowerCase().includes(searchTerm.toLowerCase());
+      question.description?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === 'all' || question.category_id === filterCategory;
     const matchesDifficulty = filterDifficulty === 'all' || question.difficulty === filterDifficulty;
-    
+
     return matchesSearch && matchesCategory && matchesDifficulty;
   });
 
@@ -379,19 +402,30 @@ export default function QuestionsManagement() {
                     Questions Database
                   </CardTitle>
                   <CardDescription>
-                    Manage your coding questions and test cases
+                    Manage your coding questions and test cases ({questions.length} questions loaded)
                   </CardDescription>
                 </div>
-                <Button 
-                  onClick={() => {
-                    resetQuestionForm();
-                    setIsQuestionDialogOpen(true);
-                  }}
-                  className="flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Question
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleImportJSONLData}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                    disabled={loading}
+                  >
+                    <Database className="h-4 w-4" />
+                    Import Questions
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      resetQuestionForm();
+                      setIsQuestionDialogOpen(true);
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Question
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -435,7 +469,7 @@ export default function QuestionsManagement() {
                 </Select>
               </div>
 
-              {/* Questions Table */}
+              {/* Questions Table - Updated without Company Tags column */}
               <div className="border rounded-lg">
                 <Table>
                   <TableHeader>
@@ -443,6 +477,7 @@ export default function QuestionsManagement() {
                       <TableHead>Title</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead>Difficulty</TableHead>
+                      <TableHead>Tags</TableHead>
                       <TableHead>Max Score</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
@@ -451,13 +486,13 @@ export default function QuestionsManagement() {
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8">
+                        <TableCell colSpan={7} className="text-center py-8">
                           Loading questions...
                         </TableCell>
                       </TableRow>
                     ) : filteredQuestions.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                           No questions found
                         </TableCell>
                       </TableRow>
@@ -481,6 +516,20 @@ export default function QuestionsManagement() {
                             <Badge className={getDifficultyColor(question.difficulty)}>
                               {question.difficulty}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {getTags(question).slice(0, 3).map((tag) => (
+                                <Badge key={tag} variant="outline" className="text-xs bg-blue-50">
+                                  {tag}
+                                </Badge>
+                              ))}
+                              {getTags(question).length > 3 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{getTags(question).length - 3}
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>{question.max_score}</TableCell>
                           <TableCell>
@@ -552,7 +601,7 @@ export default function QuestionsManagement() {
                     Organize your questions into categories
                   </CardDescription>
                 </div>
-                <Button 
+                <Button
                   onClick={() => {
                     resetCategoryForm();
                     setIsCategoryDialogOpen(true);
@@ -611,7 +660,7 @@ export default function QuestionsManagement() {
         </TabsContent>
       </Tabs>
 
-      {/* Question Create/Edit Dialog - Only shown when not in fullscreen */}
+      {/* Question Create/Edit Dialog - Updated to show tags instead of company tags */}
       {!isEditorFullScreen && (
         <Dialog open={isQuestionDialogOpen} onOpenChange={setIsQuestionDialogOpen}>
           <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
@@ -695,6 +744,23 @@ export default function QuestionsManagement() {
                   />
                 </div>
 
+                {/* Show tags if editing */}
+                {editingQuestion && (
+                  <div className="space-y-2">
+                    <Label>Tags</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {getTags(editingQuestion).map((tag) => (
+                        <Badge key={tag} variant="outline" className="bg-blue-50">
+                          {tag}
+                        </Badge>
+                      ))}
+                      {getTags(editingQuestion).length === 0 && (
+                        <span className="text-sm text-gray-500">No tags</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="isActive"
@@ -714,7 +780,7 @@ export default function QuestionsManagement() {
                     Cancel
                   </Button>
                   {currentStep === 1 && (
-                    <Button 
+                    <Button
                       onClick={() => {
                         setCurrentStep(2);
                         setIsEditorFullScreen(true);
@@ -731,6 +797,9 @@ export default function QuestionsManagement() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Rest of your existing dialogs and components remain the same... */}
+      {/* Fullscreen HTMLEditor, Category Dialog, Test Cases Dialog, Delete Dialog */}
 
       {/* Fullscreen HTMLEditor - Render separately when in fullscreen mode */}
       {isEditorFullScreen && currentStep === 2 && (

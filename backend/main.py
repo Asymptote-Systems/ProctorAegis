@@ -2,11 +2,10 @@
 FastAPI main application for Online Exam System
 Generated routes for all models
 """
-
 from typing import List
 from uuid import UUID
 
-from fastapi import FastAPI, Depends, HTTPException, status, Request, Response
+from fastapi import FastAPI, Depends, HTTPException, status, Request, Response, Body
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -22,6 +21,8 @@ from backend import models as dbmodels
 from backend import models, schemas, crud
 
 from backend.auth.passwords import hash_password
+
+from backend.importers.leetcode_jsonl_import import import_from_jsonl_files
 
 # --- App init ---
 app = FastAPI(title="Online Exam System API", version="1.0.0")
@@ -801,6 +802,22 @@ def get_exam_question_stats(exam_id: UUID, db: Session = Depends(get_db)):
         "unique_questions_used": stats.unique_questions,
         "average_points_per_question": float(stats.avg_points) if stats.avg_points else 0
     }
+
+@app.post("/admin/import-leetcode-jsonl/")  # Remove dependencies parameter
+def import_leetcode_jsonl(payload: dict = Body(...), db: Session = Depends(get_db)):
+    """Import LeetCode data from JSONL files (HumanEval format)"""
+    file_paths = payload.get("file_paths", [])
+    overwrite = bool(payload.get("overwrite", False))
+    
+    if not file_paths:
+        raise HTTPException(status_code=400, detail="file_paths is required")
+    
+    try:
+        result = import_from_jsonl_files(db, file_paths, overwrite=overwrite)
+        return {"status": "ok", **result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+  
 
 if __name__ == "__main__":
     import uvicorn
