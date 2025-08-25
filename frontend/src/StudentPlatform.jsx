@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Clock, FileCheck, AlertTriangle, Save, CheckCircle, Moon, Sun } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, useContext } from 'react';
+import { Clock, FileCheck, AlertTriangle, Save, CheckCircle, Moon, Sun, LogOut, Trophy, Calendar, RotateCcw } from 'lucide-react';
 import Editor from "@monaco-editor/react";
 import { toast } from "sonner";
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import { AuthContext } from "./auth/AuthProvider"; // Import AuthContext
 // Shadcn UI Components
 import {
   ResizableHandle,
@@ -46,6 +47,8 @@ const SAVE_DEBOUNCE_DELAY = 2000; // 2 seconds
 
 const Student_UI = () => {
   const { examId } = useParams();
+  const navigate = useNavigate();
+  const { logout } = useContext(AuthContext); // Use AuthContext
 
   // Refs for cleanup
   const timerRef = useRef(null);
@@ -94,6 +97,7 @@ const Student_UI = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [examSessionId] = useState(initialState.examSessionId || generateUUID());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExamCompleted, setIsExamCompleted] = useState(false);
 
   // Language mapping for API (Monaco editor language to API language)
   const languageMapping = useMemo(() => ({
@@ -171,7 +175,7 @@ const Student_UI = () => {
       console.error('Submission failed:', error);
       throw error;
     }
-  }, [examId, examSessionId, languageMapping, makeAPICall]);
+  }, [examId, languageMapping, makeAPICall]);
 
   // Calculate time remaining based on current time and exam end time
   const calculateTimeRemaining = useCallback(() => {
@@ -310,7 +314,7 @@ const Student_UI = () => {
     }
   }, []);
 
-  // Handle submit exam
+  // Handle submit exam with auto-logout
   const handleSubmitExam = useCallback(async () => {
     // Clear timer first to prevent multiple submissions
     if (timerRef.current) {
@@ -320,12 +324,27 @@ const Student_UI = () => {
 
     await performAutoSave();
     localStorage.removeItem(storageKey);
+
+    // Set exam as completed
+    setIsExamCompleted(true);
+
+    // Show success toast first
     toast.success("Exam Submitted Successfully", {
-      description: "Your exam has been submitted.",
+      description: "Your exam has been submitted and you will be redirected to login.",
     });
-    // Mock navigation
-    console.log('Navigating to results page');
-  }, [performAutoSave, storageKey]);
+
+    // Wait a bit for user to see the completion screen, then logout
+    setTimeout(() => {
+      logout(); // This will clear all auth tokens
+      navigate('/login', {
+        replace: true,
+        state: {
+          message: 'Your exam has been submitted successfully. Please login again to access your dashboard.',
+          type: 'success'
+        }
+      });
+    }, 3000); // 3 second delay
+  }, [performAutoSave, storageKey, logout, navigate]);
 
   // Parse date string to timestamp safely
   const parseDateTime = useCallback((dateTimeString) => {
@@ -726,6 +745,102 @@ const Student_UI = () => {
     return badges[autoSaveStatus];
   }, [autoSaveStatus]);
 
+  // Exam completion screen
+  if (isExamCompleted) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <Card className="w-full max-w-2xl mx-4 shadow-2xl border-0 bg-white/90 backdrop-blur-sm dark:bg-gray-900/90">
+          <CardHeader className="text-center pb-6">
+            <div className="flex justify-center mb-4">
+              <div className="relative">
+                <Trophy className="h-24 w-24 text-yellow-500 animate-bounce" />
+                <div className="absolute -top-1 -right-1 h-6 w-6 bg-green-500 rounded-full flex items-center justify-center">
+                  <CheckCircle className="h-4 w-4 text-white" />
+                </div>
+              </div>
+            </div>
+            <CardTitle className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              Exam Completed Successfully! 🎉
+            </CardTitle>
+            <CardDescription className="text-lg text-gray-600 dark:text-gray-300">
+              Congratulations! You have successfully submitted your exam.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="bg-gradient-to-r from-blue-50 to-green-50 dark:from-gray-800 dark:to-gray-700 p-6 rounded-xl">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <FileCheck className="h-5 w-5 text-green-600" />
+                Exam Summary
+              </h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-600 dark:text-gray-400">Exam Title:</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{examData?.title || 'Programming Exam'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 dark:text-gray-400">Questions Answered:</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{answeredQuestionsCount} / {examData?.questions?.length || 0}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 dark:text-gray-400">Completion Rate:</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{completionPercentage}%</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 dark:text-gray-400">Submitted At:</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{new Date().toLocaleTimeString()}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-gray-800 dark:to-gray-700 p-6 rounded-xl">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-orange-600" />
+                What's Next?
+              </h3>
+              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  Your answers have been saved and submitted for evaluation
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  Results will be available on your dashboard once grading is complete
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  You will be automatically logged out and redirected to the login page
+                </li>
+              </ul>
+            </div>
+
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-4">
+                <RotateCcw className="h-4 w-4" />
+                Redirecting to login in <span className="font-mono font-bold">3</span> seconds...
+              </div>
+              <Button
+                onClick={() => {
+                  logout();
+                  navigate('/login', {
+                    replace: true,
+                    state: {
+                      message: 'Your exam has been submitted successfully. Please login again to access your dashboard.',
+                      type: 'success'
+                    }
+                  });
+                }}
+                className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                <LogOut className="h-4 w-4" />
+                Go to Login Now
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Loading state
   if (isLoading) {
     return (
@@ -821,12 +936,14 @@ const Student_UI = () => {
                 <AlertDialogDescription>
                   You have answered {answeredQuestionsCount} out of {examData.questions.length} questions.
                   This action cannot be undone. Are you sure you want to submit your exam?
+                  <br /><br />
+                  <strong>Note:</strong> After submission, you will be automatically logged out.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={handleSubmitExam} className="bg-destructive hover:bg-destructive/90">
-                  Yes, Submit
+                  Yes, Submit & Logout
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
