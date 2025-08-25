@@ -1,6 +1,7 @@
 import os
 import subprocess
 import time
+import platform
 import click
 from datetime import datetime
 from rich.console import Console
@@ -15,15 +16,29 @@ DB_CONTAINER = "app-db"        # must match your Postgres container_name
 DB_NAME = os.getenv("POSTGRES_DB", "app_db")
 DB_USER = os.getenv("POSTGRES_USER", "app_user")
 
-# ------------------- Utility -------------------
+# ------------------- OS Detection -------------------
+def is_wsl() -> bool:
+    """Detect if running inside Windows Subsystem for Linux (WSL)."""
+    if platform.system().lower() != "linux":
+        return False
+    try:
+        with open("/proc/version", "r") as f:
+            return "microsoft" in f.read().lower()
+    except FileNotFoundError:
+        return False
 
+IS_WINDOWS = platform.system().lower().startswith("win")
+IS_WSL = is_wsl()
+IS_JUDGE0_SUPPORTED = not (IS_WINDOWS or IS_WSL)
+
+# ------------------- Utility -------------------
 def run(cmd, capture=False):
     try:
         if capture:
             return subprocess.run(cmd, shell=True, text=True, capture_output=True, check=True)
         else:
             subprocess.run(cmd, shell=True, check=True)
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         console.print(f"❌ [red]Command failed:[/red] {cmd}")
         if capture:
             return None
@@ -49,6 +64,7 @@ def show_urls():
         ("🎨 Frontend (Vite React)", "http://localhost:5173"),
         ("📊 LogForge Dashboard", "http://localhost:3000"),
         ("🤖 Swagger API Dashboard(ADMIN)", "http://localhost:8000/docs#/"),
+        ("🧑‍⚖️ Judge0 Code Runner", "http://localhost:2358" if IS_JUDGE0_SUPPORTED else "❌ Not available (Windows/WSL)"),
     ]
 
     for name, url in urls:
@@ -58,7 +74,6 @@ def show_urls():
     console.print("💡 [yellow]Tip:[/yellow] Open these links in your browser to explore each service!")
 
 # ------------------- Commands -------------------
-
 @click.group(invoke_without_command=True)
 @click.pass_context
 def cli(ctx):
@@ -71,10 +86,19 @@ def start():
     """Start all services"""
     setup_secrets()
     console.print("🚀 [bold cyan]Starting services...[/bold cyan]")
-    run("docker compose up -d db redis judge0_db")
-    for _ in track(range(10), description="⏳ Warming up DB & Redis..."):
-        time.sleep(1)
-    run("docker compose up -d")
+
+    if not IS_JUDGE0_SUPPORTED:
+        console.print("⚠️ [yellow]Judge0 is not supported on Windows or WSL! Skipping Judge0 service...[/yellow]")
+        run("docker compose up -d db redis")
+        for _ in track(range(10), description="⏳ Warming up DB & Redis..."):
+            time.sleep(1)
+        run("docker compose up -d frontend backend adminer logforge-backend logforge-frontend logforge-notifier logforge-autoupdate")
+    else:
+        run("docker compose up -d db redis judge0_db")
+        for _ in track(range(10), description="⏳ Warming up DB & Redis..."):
+            time.sleep(1)
+        run("docker compose up -d")
+
     console.print("✅ [green]All services are up![/green]\n")
     show_urls()
 
@@ -98,10 +122,16 @@ def reset_db():
     """Reset the database"""
     console.print("⚠️ [red]Resetting DB...[/red]")
     run("docker compose down -v")
-    run("docker compose up -d db redis judge0_db")
-    for _ in track(range(10), description="⏳ Re-initializing DB & Redis..."):
-        time.sleep(1)
-    run("docker compose up -d")
+    if not IS_JUDGE0_SUPPORTED:
+        run("docker compose up -d db redis")
+        for _ in track(range(10), description="⏳ Re-initializing DB & Redis..."):
+            time.sleep(1)
+        run("docker compose up -d frontend backend adminer logforge-backend logforge-frontend logforge-notifier logforge-autoupdate")
+    else:
+        run("docker compose up -d db redis judge0_db")
+        for _ in track(range(10), description="⏳ Re-initializing DB & Redis..."):
+            time.sleep(1)
+        run("docker compose up -d")
     console.print("✅ [green]Database reset complete![/green]")
     show_urls()
 
@@ -132,7 +162,6 @@ def urls():
     show_urls()
 
 # ------------------- Backup & Restore -------------------
-
 @cli.command("backup-db")
 def backup_db():
     """Backup the database into a .sql file"""
@@ -166,7 +195,6 @@ def restore_db():
     console.print("✅ [green]Database restore complete![/green]")
 
 # ------------------- Menu Mode -------------------
-
 def show_menu():
     console.print(Panel.fit("💡 [bold cyan]Welcome to the Docker Manager[/bold cyan]\nEasy control panel for your services 🚀", border_style="cyan"))
     
@@ -217,6 +245,5 @@ def show_menu():
     show_menu()
 
 # ------------------- Main -------------------
-
 if __name__ == "__main__":
     cli()
