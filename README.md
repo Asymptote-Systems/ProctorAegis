@@ -1,4 +1,4 @@
-# 🛡️ ProctorAegis
+# ProctorAegis
 ### *The Ultimate Enterprise-Grade Online Coding Examination Platform*
 
 <div align="center">
