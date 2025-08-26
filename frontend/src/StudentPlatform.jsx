@@ -1,39 +1,40 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Clock, FileCheck, AlertTriangle, Save, CheckCircle, Moon, Sun, LogOut } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, useContext } from 'react';
+import { Clock, FileCheck, AlertTriangle, Save, CheckCircle, Moon, Sun, LogOut, Trophy, Calendar, RotateCcw } from 'lucide-react';
 import Editor from "@monaco-editor/react";
 import { toast } from "sonner";
 import { useParams, useNavigate } from 'react-router-dom';
+import { AuthContext } from "./auth/AuthProvider"; // Import AuthContext
 // Shadcn UI Components
-import { 
-  ResizableHandle, 
-  ResizablePanel, 
-  ResizablePanelGroup 
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup
 } from '@/components/ui/resizable';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from '@/components/ui/select';
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogCancel, 
-  AlertDialogContent, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle, 
-  AlertDialogTrigger 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -47,7 +48,8 @@ const SAVE_DEBOUNCE_DELAY = 2000; // 2 seconds
 const Student_UI = () => {
   const { examId } = useParams();
   const navigate = useNavigate();
-  
+  const { logout } = useContext(AuthContext); // Use AuthContext
+
   // Refs for cleanup
   const timerRef = useRef(null);
   const autoSaveIntervalRef = useRef(null);
@@ -97,10 +99,20 @@ const Student_UI = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [examSessionId] = useState(initialState.examSessionId || generateUUID());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExamCompleted, setIsExamCompleted] = useState(false);
+
+  // Language mapping for API (Monaco editor language to API language)
+  const languageMapping = useMemo(() => ({
+    'javascript': 'javascript',
+    'python': 'python3',
+    'java': 'java',
+    'cpp': 'cpp',
+    'c': 'c'
+  }), []);
 
   // Generate UUID
   function generateUUID() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
       const r = Math.random() * 16 | 0;
       const v = c === 'x' ? r : (r & 0x3 | 0x8);
       return v.toString(16);
@@ -123,7 +135,66 @@ const Student_UI = () => {
     }
     
     return 0;
+  // API call helper function
+  const makeAPICall = useCallback(async (url, options = {}) => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      throw new Error('No access token found. Please login again.');
+    }
+
+    const defaultHeaders = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.detail || `API call failed with status ${response.status}`);
+    }
+
+    return response.json();
   }, []);
+
+  // Submit answer to API
+  const submitAnswerToAPI = useCallback(async (questionId, sourceCode, selectedLanguage) => {
+    const submissionData = {
+      source_code: sourceCode,
+      language: languageMapping[selectedLanguage] || selectedLanguage,
+      status: "pending",
+      attempt_number: 1,
+      extra_data: {
+        submitted_at: new Date().toISOString(),
+        client_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      },
+      exam_id: examId,
+      question_id: questionId
+    };
+
+    console.log('Submitting answer:', submissionData);
+
+    try {
+      const result = await makeAPICall('http://localhost:8000/submissions/', {
+        method: 'POST',
+        body: JSON.stringify(submissionData)
+      });
+
+      console.log('Submission successful:', result);
+      return result;
+    } catch (error) {
+      console.error('Submission failed:', error);
+      throw error;
+    }
+  }, [examId, languageMapping, makeAPICall]);
+
 
   // Memoized starter code templates
   const starterCodeTemplates = useMemo(() => ({
@@ -254,17 +325,17 @@ const Student_UI = () => {
     }
 
     setAutoSaveStatus('saving');
-    
+
     try {
       const updatedSavedAnswers = {
         ...savedAnswers,
         [currentQuestion.id]: code
       };
-      
+
       setSavedAnswers(updatedSavedAnswers);
-      
+
       const success = persistState({ savedAnswers: updatedSavedAnswers });
-      
+
       if (success) {
         setAutoSaveStatus('saved');
         setHasUnsavedChanges(false);
@@ -302,85 +373,60 @@ const Student_UI = () => {
     }
   }, []);
 
-  // Handle submit exam
+  // Handle submit exam with auto-logout
   const handleSubmitExam = useCallback(async () => {
-    if (isSubmitting) return; // Prevent double submission
-    
-    setIsSubmitting(true);
-    
-    try {
-      // Clear timer first to prevent multiple submissions
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      
-      // Save current work
-      await performAutoSave();
-      
-      // Update exam registration status to "submitted"
-      const statusUpdated = await updateExamRegistrationStatus('submitted');
-      
-      if (statusUpdated) {
-        // Clear local storage
-        localStorage.removeItem(storageKey);
-        
-        // Show success message
-        toast.success("Exam Submitted Successfully", {
-          description: "Your exam has been submitted and will be reviewed.",
-          duration: 3000,
-        });
-        
-        // Wait a moment for the toast to be visible, then logout
-        setTimeout(() => {
-          handleLogout();
-        }, 2000);
-      } else {
-        // If status update failed, still show success but don't logout immediately
-        toast.success("Exam Submitted", {
-          description: "Your exam has been submitted locally. Please contact support if you face any issues.",
-          duration: 5000,
-        });
-        
-        // Clear local storage anyway
-        localStorage.removeItem(storageKey);
-        
-        setTimeout(() => {
-          handleLogout();
-        }, 3000);
-      }
-    } catch (error) {
-      console.error('Error during exam submission:', error);
-      toast.error("Submission Error", {
-        description: "There was an error submitting your exam. Please try again or contact support.",
-        duration: 5000,
-      });
-      setIsSubmitting(false);
+    // Clear timer first to prevent multiple submissions
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
-  }, [isSubmitting, performAutoSave, updateExamRegistrationStatus, storageKey, handleLogout]);
+
+    await performAutoSave();
+    localStorage.removeItem(storageKey);
+
+    // Set exam as completed
+    setIsExamCompleted(true);
+
+    // Show success toast first
+    toast.success("Exam Submitted Successfully", {
+      description: "Your exam has been submitted and you will be redirected to login.",
+    });
+
+    // Wait a bit for user to see the completion screen, then logout
+    setTimeout(() => {
+      logout(); // This will clear all auth tokens
+      navigate('/login', {
+        replace: true,
+        state: {
+          message: 'Your exam has been submitted successfully. Please login again to access your dashboard.',
+          type: 'success'
+        }
+      });
+    }, 3000); // 3 second delay
+  }, [performAutoSave, storageKey, logout, navigate]);
 
   // Parse date string to timestamp safely
   const parseDateTime = useCallback((dateTimeString) => {
     if (!dateTimeString) return null;
-    
+
     try {
       // Handle different date formats
       let date;
-      
+
       // If it's already a timestamp
       if (typeof dateTimeString === 'number') {
         return dateTimeString;
       }
-      
+
       // If it's an ISO string or standard date format
       date = new Date(dateTimeString);
-      
+
       // Check if date is valid
       if (isNaN(date.getTime())) {
         console.warn('Invalid date format:', dateTimeString);
         return null;
       }
-      
+
       return date.getTime();
     } catch (error) {
       console.error('Error parsing date:', dateTimeString, error);
@@ -422,7 +468,7 @@ const Student_UI = () => {
       try {
         setIsLoading(true);
         setFetchError(null);
-        
+
         const token = localStorage.getItem('access_token');
         if (!token) {
           if (isMounted) {
@@ -450,13 +496,13 @@ const Student_UI = () => {
         }
 
         const questionsData = await questionsResponse.json();
-        let examDetails = { 
-          duration: 120, 
+        let examDetails = {
+          duration: 120,
           title: 'Programming Exam',
           start_time: null,
           end_time: null
         };
-        
+
         if (examResponse.ok) {
           examDetails = await examResponse.json();
         }
@@ -468,8 +514,8 @@ const Student_UI = () => {
           .map((q, index) => ({
             id: q.question.id,
             title: q.question.title || "Untitled Question",
-            difficulty: q.question.difficulty ? 
-              q.question.difficulty.charAt(0).toUpperCase() + q.question.difficulty.slice(1) : 
+            difficulty: q.question.difficulty ?
+              q.question.difficulty.charAt(0).toUpperCase() + q.question.difficulty.slice(1) :
               "Easy",
             description: q.question.description || "",
             problem_statement: q.question.problem_statement || "",
@@ -534,7 +580,7 @@ const Student_UI = () => {
             });
           }
         }
-        
+
         // Fallback: Start exam now with duration
         if (!examStartTime || !examEndTime) {
           const now = Date.now();
@@ -548,13 +594,13 @@ const Student_UI = () => {
         
         examStartTimeRef.current = examStartTime;
         examEndTimeRef.current = examEndTime;
-        
+
         // Calculate initial time remaining
         const initialTimeRemaining = calculateTimeRemaining();
         console.log('Initial time remaining (seconds):', initialTimeRemaining);
-        
+
         setTimeLeft(initialTimeRemaining);
-        
+
         // If exam has already ended, submit automatically
         if (initialTimeRemaining <= 0) {
           console.log('Exam time has expired, auto-submitting');
@@ -588,10 +634,10 @@ const Student_UI = () => {
     // Update timer immediately and then every second
     const updateTimer = () => {
       const remaining = calculateTimeRemaining();
-      
+
       console.log('Timer update - remaining seconds:', remaining);
       setTimeLeft(remaining);
-      
+
       // Auto-submit when time runs out
       if (remaining <= 0) {
         console.log('Timer expired, submitting exam');
@@ -640,7 +686,7 @@ const Student_UI = () => {
   // Load saved answer when question changes
   useEffect(() => {
     if (!currentQuestion) return;
-    
+
     const savedCode = savedAnswers[currentQuestion.id];
     if (savedCode !== undefined) {
       setCode(savedCode);
@@ -656,7 +702,7 @@ const Student_UI = () => {
   // Persist state on changes (debounced)
   useEffect(() => {
     if (!examData || timeLeft === null) return;
-    
+
     const timeoutId = setTimeout(() => {
       persistState();
     }, 1000);
@@ -689,22 +735,41 @@ const Student_UI = () => {
 
   // Event handlers
   const handleSubmitAnswer = useCallback(async () => {
-    if (!currentQuestion || isCurrentQuestionSubmitted) return;
-    
-    await performAutoSave();
-    
-    const updatedSubmittedAnswers = {
-      ...submittedAnswers,
-      [currentQuestion.id]: code
-    };
-    
-    setSubmittedAnswers(updatedSubmittedAnswers);
-    persistState({ submittedAnswers: updatedSubmittedAnswers });
+    if (!currentQuestion || isCurrentQuestionSubmitted || isSubmitting) return;
 
-    toast.success("Answer Submitted", {
-      description: `Your answer for "${currentQuestion.title}" has been submitted successfully.`,
-    });
-  }, [currentQuestion, isCurrentQuestionSubmitted, submittedAnswers, code, performAutoSave, persistState]);
+    setIsSubmitting(true);
+
+    try {
+      // First auto-save the current code
+      await performAutoSave();
+
+      // Submit to API
+      const submissionResult = await submitAnswerToAPI(currentQuestion.id, code, language);
+
+      // Update local state
+      const updatedSubmittedAnswers = {
+        ...submittedAnswers,
+        [currentQuestion.id]: code
+      };
+
+      setSubmittedAnswers(updatedSubmittedAnswers);
+      persistState({ submittedAnswers: updatedSubmittedAnswers });
+
+      toast.success("Answer Submitted Successfully", {
+        description: `Your answer for "${currentQuestion.title}" has been submitted and is being evaluated.`,
+      });
+
+      console.log('Submission completed:', submissionResult);
+
+    } catch (error) {
+      console.error('Submit answer failed:', error);
+      toast.error("Submission Failed", {
+        description: error.message || "Failed to submit your answer. Please try again.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [currentQuestion, isCurrentQuestionSubmitted, isSubmitting, submittedAnswers, code, language, performAutoSave, submitAnswerToAPI, persistState]);
 
   const handleNextQuestion = useCallback(async () => {
     if (!examData || currentQuestionIndex >= examData.questions.length - 1) return;
@@ -733,11 +798,11 @@ const Student_UI = () => {
     if (typeof seconds !== 'number' || isNaN(seconds) || seconds < 0) {
       return '00:00:00';
     }
-    
+
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
-    
+
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
@@ -782,6 +847,102 @@ const Student_UI = () => {
     };
     return badges[autoSaveStatus];
   }, [autoSaveStatus]);
+
+  // Exam completion screen
+  if (isExamCompleted) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <Card className="w-full max-w-2xl mx-4 shadow-2xl border-0 bg-white/90 backdrop-blur-sm dark:bg-gray-900/90">
+          <CardHeader className="text-center pb-6">
+            <div className="flex justify-center mb-4">
+              <div className="relative">
+                <Trophy className="h-24 w-24 text-yellow-500 animate-bounce" />
+                <div className="absolute -top-1 -right-1 h-6 w-6 bg-green-500 rounded-full flex items-center justify-center">
+                  <CheckCircle className="h-4 w-4 text-white" />
+                </div>
+              </div>
+            </div>
+            <CardTitle className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              Exam Completed Successfully! 🎉
+            </CardTitle>
+            <CardDescription className="text-lg text-gray-600 dark:text-gray-300">
+              Congratulations! You have successfully submitted your exam.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="bg-gradient-to-r from-blue-50 to-green-50 dark:from-gray-800 dark:to-gray-700 p-6 rounded-xl">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <FileCheck className="h-5 w-5 text-green-600" />
+                Exam Summary
+              </h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-600 dark:text-gray-400">Exam Title:</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{examData?.title || 'Programming Exam'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 dark:text-gray-400">Questions Answered:</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{answeredQuestionsCount} / {examData?.questions?.length || 0}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 dark:text-gray-400">Completion Rate:</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{completionPercentage}%</p>
+                </div>
+                <div>
+                  <p className="text-gray-600 dark:text-gray-400">Submitted At:</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{new Date().toLocaleTimeString()}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-gray-800 dark:to-gray-700 p-6 rounded-xl">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-orange-600" />
+                What's Next?
+              </h3>
+              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  Your answers have been saved and submitted for evaluation
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  Results will be available on your dashboard once grading is complete
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  You will be automatically logged out and redirected to the login page
+                </li>
+              </ul>
+            </div>
+
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-4">
+                <RotateCcw className="h-4 w-4" />
+                Redirecting to login in <span className="font-mono font-bold">3</span> seconds...
+              </div>
+              <Button
+                onClick={() => {
+                  logout();
+                  navigate('/login', {
+                    replace: true,
+                    state: {
+                      message: 'Your exam has been submitted successfully. Please login again to access your dashboard.',
+                      type: 'success'
+                    }
+                  });
+                }}
+                className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                <LogOut className="h-4 w-4" />
+                Go to Login Now
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Loading state
   if (isLoading) {
@@ -831,19 +992,19 @@ const Student_UI = () => {
             Question {currentQuestionIndex + 1} of {examData.questions.length}
           </Badge>
         </div>
-        
+
         <div className="flex items-center gap-6">
           {/* Theme Toggle */}
-          <Button 
-            variant="outline" 
-            size="icon" 
+          <Button
+            variant="outline"
+            size="icon"
             onClick={toggleTheme}
             className="h-9 w-9"
             aria-label="Toggle theme"
           >
             {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </Button>
-          
+
           {/* Timer */}
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
@@ -851,7 +1012,7 @@ const Student_UI = () => {
               {formatTime(timeLeft)}
             </span>
           </div>
-          
+
           {/* Progress */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Progress:</span>
@@ -896,6 +1057,15 @@ const Student_UI = () => {
                   ) : (
                     'Yes, Submit & Logout'
                   )}
+                  This action cannot be undone. Are you sure you want to submit your exam?
+                  <br /><br />
+                  <strong>Note:</strong> After submission, you will be automatically logged out.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleSubmitExam} className="bg-destructive hover:bg-destructive/90">
+                  Yes, Submit & Logout
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -933,11 +1103,11 @@ const Student_UI = () => {
                         <p>{currentQuestion.description}</p>
                       </div>
                     )}
-                    
+
                     {currentQuestion?.problem_statement && (
-                      <div 
+                      <div
                         className="mb-4 prose dark:prose-invert max-w-none"
-                        dangerouslySetInnerHTML={{ __html: currentQuestion.problem_statement }} 
+                        dangerouslySetInnerHTML={{ __html: currentQuestion.problem_statement }}
                       />
                     )}
 
@@ -953,15 +1123,15 @@ const Student_UI = () => {
 
                   {/* Navigation */}
                   <div className="flex justify-between pt-4">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={handlePrevQuestion}
                       disabled={currentQuestionIndex === 0}
                     >
                       Previous
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={handleNextQuestion}
                       disabled={currentQuestionIndex === examData.questions.length - 1}
                     >
@@ -1005,10 +1175,10 @@ const Student_UI = () => {
                     </>
                   )}
                 </div>
-                
+
                 {/* Language Selector */}
-                <Select 
-                  value={language} 
+                <Select
+                  value={language}
                   onValueChange={handleLanguageChange}
                   disabled={isCurrentQuestionSubmitted}
                 >
@@ -1024,7 +1194,7 @@ const Student_UI = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               {/* Monaco Editor */}
               <div className="flex-1">
                 <Editor
@@ -1055,16 +1225,16 @@ const Student_UI = () => {
 
               {/* Action Buttons */}
               <div className="flex justify-between gap-2 p-2 border-t">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={performAutoSave}
                   disabled={autoSaveStatus === 'saving' || isCurrentQuestionSubmitted || !hasUnsavedChanges}
                 >
                   {autoSaveStatus === 'saving' ? 'Saving...' : 'Save Code'}
                 </Button>
-                
+
                 {isCurrentQuestionSubmitted ? (
-                  <Button 
+                  <Button
                     disabled
                     className="gap-2 opacity-50 cursor-not-allowed"
                   >
@@ -1072,13 +1242,13 @@ const Student_UI = () => {
                     Already Submitted
                   </Button>
                 ) : (
-                  <Button 
+                  <Button
                     onClick={handleSubmitAnswer}
                     className="gap-2"
-                    disabled={!code.trim()}
+                    disabled={!code.trim() || isSubmitting}
                   >
                     <FileCheck className="h-4 w-4" />
-                    Submit Answer
+                    {isSubmitting ? 'Submitting...' : 'Submit Answer'}
                   </Button>
                 )}
               </div>

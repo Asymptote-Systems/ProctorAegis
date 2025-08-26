@@ -15,6 +15,7 @@ import { AuthContext } from "./auth/AuthProvider";
 import api from "./api/apiClient";
 import LogoutButton from "./LogoutButton";
 
+
 // Reduced glow intensity CSS for the red dot (back to original level)
 const glowingDotStyles = `
   @keyframes pulse-glow {
@@ -43,6 +44,7 @@ const glowingDotStyles = `
   }
 `;
 
+
 export default function StudentDashboard() {
     const { user, loading: authLoading } = useContext(AuthContext);
     const [registeredExams, setRegisteredExams] = useState([]);
@@ -54,21 +56,25 @@ export default function StudentDashboard() {
     const [selectedExamData, setSelectedExamData] = useState(null);
     const navigate = useNavigate();
 
+
     // Add the glow styles to the document head
     useEffect(() => {
         const styleElement = document.createElement("style");
         styleElement.textContent = glowingDotStyles;
         document.head.appendChild(styleElement);
 
+
         return () => {
             document.head.removeChild(styleElement);
         };
     }, []);
 
+
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(timer);
     }, []);
+
 
     useEffect(() => {
         if (!authLoading && (!user || user.role !== 'student')) {
@@ -76,12 +82,52 @@ export default function StudentDashboard() {
         }
     }, [user, authLoading, navigate]);
 
+
     useEffect(() => {
         if (user && user.role === 'student') {
             fetchRegisteredExams();
         }
         // eslint-disable-next-line
     }, [user]);
+
+
+    // Fixed function to display time as-is without timezone conversion
+    const formatTimeAsIs = (isoString) => {
+        if (!isoString) return 'Invalid Time';
+        
+        try {
+            // Extract time part from "2025-08-20T22:11:00+00:00" or "2025-08-20T22:11:00Z"
+            const timePart = isoString.split('T')[1];
+            if (timePart) {
+                // Remove timezone offset part and extract HH:MM:SS
+                let timeOnly = timePart.split('+')[0].split('-')[0].split('Z')[0];
+                // Return only HH:MM format
+                const [hours, minutes] = timeOnly.split(':');
+                return `${hours}:${minutes}`;
+            }
+            return 'Invalid Time';
+        } catch (error) {
+            console.error('Error parsing time:', error);
+            return 'Invalid Time';
+        }
+    };
+
+
+    // Fixed function to display date as-is without timezone conversion
+    const formatDateAsIs = (isoString) => {
+        if (!isoString) return 'Invalid Date';
+        
+        try {
+            // Extract date part from "2025-08-20T22:11:00+00:00"
+            const datePart = isoString.split('T')[0]; // "2025-08-20"
+            const [year, month, day] = datePart.split('-');
+            return `${day}/${month}/${year}`;
+        } catch (error) {
+            console.error('Error parsing date:', error);
+            return 'Invalid Date';
+        }
+    };
+
 
     const fetchRegisteredExams = async () => {
         try {
@@ -103,22 +149,27 @@ export default function StudentDashboard() {
                 })
             );
 
+
             // Corrected sorting: Active first, then upcoming (earliest first), then completed (latest first)
             const validExams = examsWithDetails.filter(item => item.exam);
             const sortedExams = validExams.sort((a, b) => {
                 const statusA = getExamStatus(a.exam);
                 const statusB = getExamStatus(b.exam);
 
+
                 // Priority order: active > upcoming > completed
                 const statusPriority = { active: 3, upcoming: 2, completed: 1 };
+
 
                 if (statusPriority[statusA] !== statusPriority[statusB]) {
                     return statusPriority[statusB] - statusPriority[statusA];
                 }
 
-                // Within same status group
-                const dateA = new Date(a.exam.start_time);
-                const dateB = new Date(b.exam.start_time);
+
+                // Within same status group - use UTC timestamps for comparison
+                const dateA = new Date(a.exam.start_time).getTime();
+                const dateB = new Date(b.exam.start_time).getTime();
+
 
                 if (statusA === 'completed') {
                     // For completed exams: latest first (most recent)
@@ -129,6 +180,7 @@ export default function StudentDashboard() {
                 }
             });
 
+
             setRegisteredExams(sortedExams);
         } catch (error) {
             toast.error("Failed to load exams", { description: "Could not fetch your registered exams. Please try again." });
@@ -137,22 +189,29 @@ export default function StudentDashboard() {
         }
     };
 
+
     function pad(num) {
         return num.toString().padStart(2, '0');
     }
 
+
+    // Fixed time remaining calculation - use UTC for proper comparison
     function formatTimeRemaining(targetTime) {
         const now = currentTime.getTime();
         const target = new Date(targetTime).getTime();
         const diff = target - now;
+        
         if (diff <= 0) return "00:00:00";
+        
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
         const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
         if (days > 0) return `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
         else return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
     }
+
 
     function getExamStatus(exam) {
         if (!exam) return 'loading';
@@ -164,20 +223,25 @@ export default function StudentDashboard() {
         return 'completed';
     }
 
-    // Format date as dd/mm/yyyy
+
+    // Fixed date formatting function using string parsing instead of Date object
     function formatDateDDMMYYYY(dateString) {
-        const date = new Date(dateString);
-        const day = date.getDate().toString().padStart(2, '0');
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const year = date.getFullYear();
-        return `${day}/${month}/${year}`;
+        try {
+            // Use string parsing to avoid timezone conversion
+            return formatDateAsIs(dateString);
+        } catch (error) {
+            console.error('Error formatting date:', error);
+            return 'Invalid Date';
+        }
     }
+
 
     function handleStartExamClick(examData) {
         setSelectedExamId(examData.registration.exam_id);
         setSelectedExamData(examData);
         setShowStartDialog(true);
     }
+
 
     async function getClientIP() {
         try {
@@ -189,11 +253,14 @@ export default function StudentDashboard() {
         }
     }
 
+
     async function handleStartExam() {
         if (!selectedExamId || !selectedExamData) return;
 
+
         try {
             setStartingExam(selectedExamId);
+
 
             const now = new Date();
             const sessionData = {
@@ -217,24 +284,31 @@ export default function StudentDashboard() {
                 exam_id: selectedExamId
             };
 
+
             console.log('Creating exam session:', sessionData);
 
+
             const response = await api.post('/exam-sessions/', sessionData);
+
 
             if (response.status !== 200 && response.status !== 201) {
                 throw new Error('Failed to create exam session');
             }
 
+
             const createdSession = response.data;
             console.log('Exam session created successfully:', createdSession);
+
 
             localStorage.setItem('currentExamId', selectedExamId);
             localStorage.setItem('examSessionData', JSON.stringify(createdSession));
             localStorage.setItem('examSessionId', createdSession.id || createdSession.session_id);
 
+
             toast.success("Exam Started", {
                 description: "Your exam session has been created successfully. Redirecting to exam platform..."
             });
+
 
             navigate(`/student/platform/${selectedExamId}`, {
                 state: {
@@ -243,6 +317,7 @@ export default function StudentDashboard() {
                     sessionData: createdSession
                 }
             });
+
 
         } catch (error) {
             console.error('Error starting exam:', error);
@@ -256,6 +331,7 @@ export default function StudentDashboard() {
             setSelectedExamData(null);
         }
     }
+
 
     function getStatusBadge(status) {
         switch (status) {
@@ -276,6 +352,7 @@ export default function StudentDashboard() {
         }
     }
 
+
     function getExamTypeBadge(examType) {
         const typeStyles = {
             'practice': 'bg-blue-100 text-blue-800 border-blue-200',
@@ -284,6 +361,7 @@ export default function StudentDashboard() {
             'midterm': 'bg-purple-100 text-purple-800 border-purple-200',
             'quiz': 'bg-green-100 text-green-800 border-green-200'
         };
+
 
         return (
             <Badge
@@ -295,21 +373,29 @@ export default function StudentDashboard() {
         );
     }
 
+
+    // Fixed end time formatting function
     function formatEndTime(exam, status) {
         if (status !== 'completed') return null;
 
-        const endTime = new Date(exam.end_time);
+        // Parse the end time string directly without Date object conversion
+        const endTimeStr = exam.end_time;
+        
+        // Calculate time difference using Date objects for comparison only
+        const endTime = new Date(endTimeStr);
         const now = new Date();
         const diffHours = (now - endTime) / (1000 * 60 * 60);
 
         if (diffHours < 24) {
-            // Less than a day - show time
-            return `Ended at ${endTime.toLocaleTimeString()}`;
+            // Less than a day - show time as-is without timezone conversion
+            return `Ended at ${formatTimeAsIs(endTimeStr)}`;
         } else {
-            // More than a day - show date
-            return `Ended on ${formatDateDDMMYYYY(exam.end_time)}`;
+            // More than a day - show date as-is without timezone conversion  
+            return `Ended on ${formatDateAsIs(endTimeStr)}`;
         }
     }
+
+
 
     if (authLoading || loading) {
         return (
@@ -322,9 +408,11 @@ export default function StudentDashboard() {
         );
     }
 
+
     const upcomingExams = registeredExams.filter(item => getExamStatus(item.exam) === 'upcoming').length;
     const activeExams = registeredExams.filter(item => getExamStatus(item.exam) === 'active').length;
     const completedExams = registeredExams.filter(item => getExamStatus(item.exam) === 'completed').length;
+
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-blue-50">
@@ -347,6 +435,7 @@ export default function StudentDashboard() {
                 </div>
             </header>
 
+
             <main className="max-w-8xl mx-auto px-2 sm:px-6 lg:px-8 py-8">
                 {/* Welcome Section */}
                 <div className="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-3">
@@ -364,6 +453,7 @@ export default function StudentDashboard() {
                         Refresh
                     </Button>
                 </div>
+
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -398,6 +488,7 @@ export default function StudentDashboard() {
                         </CardContent>
                     </Card>
                 </div>
+
 
                 {/* My Exams Section */}
                 <section className="mb-8">
@@ -435,6 +526,7 @@ export default function StudentDashboard() {
                                         const timeRemaining = formatTimeRemaining(exam.start_time);
                                         const endTimeFormatted = formatEndTime(exam, status);
 
+
                                         return (
                                             <Card
                                                 key={exam.id}
@@ -457,6 +549,7 @@ export default function StudentDashboard() {
                                                         </div>
                                                     </div>
 
+
                                                     <div className="flex flex-col md:flex-row md:items-center md:gap-6 mt-4">
                                                         <div className="flex flex-col gap-2 text-[15px] font-medium mb-2">
                                                             {/* Show different info based on status */}
@@ -467,9 +560,10 @@ export default function StudentDashboard() {
                                                                         <Calendar className="w-4 h-4 text-green-600" />
                                                                         <span className="text-green-700 font-semibold">Starts:</span>
                                                                         <span className="text-green-600">
-                                                                            {formatDateDDMMYYYY(exam.start_time)} at {new Date(exam.start_time).toLocaleTimeString()}
+                                                                            {formatDateAsIs(exam.start_time)} at {formatTimeAsIs(exam.start_time)}
                                                                         </span>
                                                                     </span>
+
 
                                                                     {/* Duration */}
                                                                     <span className="flex items-center gap-1">
@@ -477,6 +571,7 @@ export default function StudentDashboard() {
                                                                         <span className="text-sky-700 font-semibold">Duration:</span>
                                                                         <span className="text-sky-600">{exam.duration_minutes} minutes</span>
                                                                     </span>
+
 
                                                                     {/* Countdown */}
                                                                     {timeRemaining && (
@@ -489,6 +584,7 @@ export default function StudentDashboard() {
                                                                 </>
                                                             )}
 
+
                                                             {status === 'active' && (
                                                                 <>
                                                                     {/* Started text - no date/time */}
@@ -497,6 +593,7 @@ export default function StudentDashboard() {
                                                                         <span className="text-green-700 font-semibold">Started</span>
                                                                     </span>
 
+
                                                                     {/* Duration */}
                                                                     <span className="flex items-center gap-1">
                                                                         <Clock className="w-4 h-4 text-sky-600" />
@@ -504,14 +601,16 @@ export default function StudentDashboard() {
                                                                         <span className="text-sky-600">{exam.duration_minutes} minutes</span>
                                                                     </span>
 
+
                                                                     {/* End time */}
                                                                     <span className="flex items-center gap-1">
                                                                         <Timer className="w-4 h-4 text-red-600" />
                                                                         <span className="text-red-700 font-semibold">Ends:</span>
-                                                                        <span className="text-red-600">{new Date(exam.end_time).toLocaleTimeString()}</span>
+                                                                        <span className="text-red-600">{formatDateAsIs(exam.end_time)} at {formatTimeAsIs(exam.end_time)}</span>
                                                                     </span>
                                                                 </>
                                                             )}
+
 
                                                             {status === 'completed' && (
                                                                 <>
@@ -521,6 +620,7 @@ export default function StudentDashboard() {
                                                                         <span className="text-red-700 font-semibold">{endTimeFormatted}</span>
                                                                     </span>
 
+
                                                                     {/* Duration */}
                                                                     <span className="flex items-center gap-1">
                                                                         <Clock className="w-4 h-4 text-sky-600" />
@@ -531,12 +631,14 @@ export default function StudentDashboard() {
                                                             )}
                                                         </div>
 
+
                                                         {/* Description */}
                                                         <div className="text-sm text-slate-600 md:ml-auto max-w-md">
                                                             <div className="font-semibold text-slate-700 mb-1">Description:</div>
                                                             {exam.description || <span className="italic text-slate-400">No description</span>}
                                                         </div>
                                                     </div>
+
 
                                                     {/* Start button moved back below */}
                                                     <div className="flex justify-end mt-4">
@@ -560,6 +662,7 @@ export default function StudentDashboard() {
                         </CardContent>
                     </Card>
                 </section>
+
 
                 {/* Start Exam Confirmation Dialog */}
                 <AlertDialog open={showStartDialog} onOpenChange={setShowStartDialog}>
