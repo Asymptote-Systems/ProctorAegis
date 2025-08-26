@@ -175,7 +175,7 @@ class LeetCodeAPI:
 
 class SubmissionProcessor:
     def __init__(self):
-        self.judge0_api_url = "http://localhost:2358/"
+        self.judge0_api_url = "http://server:2358/"
         self.processing_jobs = {}
         self.leetcode_api = LeetCodeAPI(self.judge0_api_url)
         
