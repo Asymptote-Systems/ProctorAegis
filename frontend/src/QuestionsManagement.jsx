@@ -142,15 +142,15 @@ export default function QuestionsManagement() {
       // Refresh data after import
       await loadQuestions();
       await loadCategories();
-
-      alert('LeetCode JSONL data imported successfully!');
+      alert('LeetCode JSONL data imported successfully with content from JSON file!');
     } catch (error) {
       console.error('Import failed:', error);
-      alert('Import failed. Please check console for details and ensure JSONL files are in the backend root directory.');
+      alert('Import failed. Please check console for details and ensure both JSONL and JSON files are in the backend directory.');
     } finally {
       setLoading(false);
     }
   };
+
 
   // Load questions from API
   const loadQuestions = async () => {

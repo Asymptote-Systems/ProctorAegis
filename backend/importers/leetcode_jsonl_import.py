@@ -8,6 +8,32 @@ from sqlalchemy.orm import Session
 from backend import models
 
 
+def load_leetcode_content_json(file_path: str) -> Dict[str, str]:
+    """Load the leetcode content JSON file and return as dictionary"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content_data = json.load(f)
+        
+        # Create a mapping using questionFrontendId as key for faster lookup
+        content_mapping = {}
+        for item in content_data:
+            question_data = item.get('data', {}).get('question', {})
+            frontend_id = question_data.get('questionFrontendId')
+            if frontend_id:
+                content_mapping[frontend_id] = question_data.get('content', '')
+        
+        print(f"Loaded {len(content_mapping)} questions from content file")
+        return content_mapping
+    except Exception as e:
+        print(f"Error loading leetcode content file: {e}")
+        return {}
+
+
+def get_problem_description_from_content(content_mapping: Dict[str, str], question_id: str) -> str:
+    """Get problem description from content mapping using question_id"""
+    return content_mapping.get(str(question_id), "")
+
+
 def ensure_category(db: Session, name: str) -> models.QuestionCategory:
     """Create or get category by name"""
     cat = db.query(models.QuestionCategory).filter(models.QuestionCategory.name == name).first()
@@ -83,7 +109,14 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
     test_cases_created = 0
     errors = []
     
-    # ADD THIS NEAR THE TOP - Batch processing variables
+    # Load the leetcode content JSON file
+    content_file_path = "backend/leetcode_questions_content.json"
+    content_mapping = load_leetcode_content_json(content_file_path)
+    
+    if not content_mapping:
+        print("Warning: Could not load leetcode content file. Using JSONL descriptions.")
+    
+    # Batch processing variables
     BATCH_SIZE = 100  # Process in batches
     batch_count = 0
 
@@ -106,7 +139,16 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
                         title = task_id.replace('-', ' ').title() if task_id else f"Problem {question_id}"
                         difficulty = obj.get("difficulty", "Medium").lower()
                         tags = [tag.lower().replace(' ', '-') for tag in obj.get("tags", [])]
-                        problem_description = obj.get("problem_description", "")
+                        
+                        # USE CONTENT FROM JSON FILE IF AVAILABLE, OTHERWISE FALLBACK TO JSONL
+                        problem_description_from_content = get_problem_description_from_content(content_mapping, question_id)
+                        if problem_description_from_content:
+                            problem_description = problem_description_from_content
+                            print(f"Using content from JSON for question {question_id}")
+                        else:
+                            problem_description = obj.get("problem_description", "")
+                            print(f"Fallback to JSONL description for question {question_id}")
+                        
                         starter_code = obj.get("starter_code", "")
                         input_output = obj.get("input_output", [])
 
@@ -145,7 +187,7 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
                                 "task_id": task_id,
                                 "tags": tags,
                                 "starter_code": starter_code,
-                                "imported_from": "jsonl_human_eval",
+                                "imported_from": "jsonl_human_eval_with_content",
                                 "imported_at": datetime.now().isoformat()
                             }
                             db.add(existing)
@@ -170,7 +212,7 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
                                     is_sample=True,  # SAMPLE CASE
                                     is_hidden=False, # VISIBLE TO STUDENTS
                                     weight=1,
-                                    extra_data={"imported_from": "jsonl_human_eval"}
+                                    extra_data={"imported_from": "jsonl_human_eval_with_content"}
                                 )
                                 db.add(tc)
                                 test_cases_created += 1
@@ -197,7 +239,7 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
                                     "task_id": task_id,
                                     "tags": tags,
                                     "starter_code": starter_code,
-                                    "imported_from": "jsonl_human_eval",
+                                    "imported_from": "jsonl_human_eval_with_content",
                                     "imported_at": datetime.now().isoformat()
                                 }
                             )
@@ -213,7 +255,7 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
                                     is_sample=True,  # SAMPLE CASE
                                     is_hidden=False, # VISIBLE TO STUDENTS
                                     weight=1,
-                                    extra_data={"imported_from": "jsonl_human_eval"}
+                                    extra_data={"imported_from": "jsonl_human_eval_with_content"}
                                 )
                                 db.add(tc)
                                 test_cases_created += 1
@@ -244,7 +286,7 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
             errors.append(f"File error: {str(e)}")
             continue
 
-    # ADD THIS AT THE END - Final commit for remaining records
+    # Final commit for remaining records
     if batch_count % BATCH_SIZE != 0:
         db.commit()
         print(f"Final commit - total questions processed: {batch_count}")

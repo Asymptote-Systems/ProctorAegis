@@ -847,7 +847,7 @@ def get_exam_question_stats(exam_id: UUID, db: Session = Depends(get_db)):
         "average_points_per_question": float(stats.avg_points) if stats.avg_points else 0
     }
 
-@app.post("/admin/import-leetcode-jsonl/")  # Remove dependencies parameter
+@app.post("/admin/import-leetcode-jsonl/")
 def import_leetcode_jsonl(payload: dict = Body(...), db: Session = Depends(get_db)):
     """Import LeetCode data from JSONL files (HumanEval format)"""
     file_paths = payload.get("file_paths", [])
@@ -861,7 +861,7 @@ def import_leetcode_jsonl(payload: dict = Body(...), db: Session = Depends(get_d
         return {"status": "ok", **result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-  
+
 
 if __name__ == "__main__":
     import uvicorn
