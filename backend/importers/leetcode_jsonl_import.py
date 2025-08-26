@@ -7,6 +7,33 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from backend import models
 
+
+def load_leetcode_content_json(file_path: str) -> Dict[str, str]:
+    """Load the leetcode content JSON file and return as dictionary"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content_data = json.load(f)
+        
+        # Create a mapping using questionFrontendId as key for faster lookup
+        content_mapping = {}
+        for item in content_data:
+            question_data = item.get('data', {}).get('question', {})
+            frontend_id = question_data.get('questionFrontendId')
+            if frontend_id:
+                content_mapping[frontend_id] = question_data.get('content', '')
+        
+        print(f"Loaded {len(content_mapping)} questions from content file")
+        return content_mapping
+    except Exception as e:
+        print(f"Error loading leetcode content file: {e}")
+        return {}
+
+
+def get_problem_description_from_content(content_mapping: Dict[str, str], question_id: str) -> str:
+    """Get problem description from content mapping using question_id"""
+    return content_mapping.get(str(question_id), "")
+
+
 def ensure_category(db: Session, name: str) -> models.QuestionCategory:
     """Create or get category by name"""
     cat = db.query(models.QuestionCategory).filter(models.QuestionCategory.name == name).first()
@@ -22,6 +49,7 @@ def ensure_category(db: Session, name: str) -> models.QuestionCategory:
     db.commit()
     db.refresh(cat)
     return cat
+
 
 def get_or_create_system_user(db: Session) -> models.User:
     """Get or create system user for imports"""
@@ -40,16 +68,22 @@ def get_or_create_system_user(db: Session) -> models.User:
     db.refresh(user)
     return user
 
+
 def question_exists(db: Session, question_id: str) -> Optional[models.Question]:
     """Check if question exists by question_id"""
     return db.query(models.Question).filter(
         models.Question.extra_data['question_id'].astext == str(question_id)
     ).first()
 
+
 def parse_test_cases_from_input_output(input_output: list) -> list:
-    """Convert input_output format to test cases"""
+    """Convert input_output format to test cases - ONLY FIRST 3 (SAMPLE CASES)"""
     test_cases = []
     for i, case in enumerate(input_output):
+        # ONLY PROCESS FIRST 3 TEST CASES
+        if i >= 3:
+            break
+            
         # Handle missing or None output
         output = case.get("output", "")
         if output is None:
@@ -62,9 +96,10 @@ def parse_test_cases_from_input_output(input_output: list) -> list:
         test_cases.append({
             "input": case.get("input", ""),
             "output": str(output),  # Ensure it's a string
-            "is_example": i < 3  # First 3 as examples
+            "is_example": True  # ALL IMPORTED CASES ARE SAMPLE/EXAMPLE CASES
         })
     return test_cases
+
 
 def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = False) -> Dict[str, Any]:
     """Import from multiple JSONL files"""
@@ -74,7 +109,14 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
     test_cases_created = 0
     errors = []
     
-    # ADD THIS NEAR THE TOP - Batch processing variables
+    # Load the leetcode content JSON file
+    content_file_path = "backend/leetcode_questions_content.json"
+    content_mapping = load_leetcode_content_json(content_file_path)
+    
+    if not content_mapping:
+        print("Warning: Could not load leetcode content file. Using JSONL descriptions.")
+    
+    # Batch processing variables
     BATCH_SIZE = 100  # Process in batches
     batch_count = 0
 
@@ -97,7 +139,16 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
                         title = task_id.replace('-', ' ').title() if task_id else f"Problem {question_id}"
                         difficulty = obj.get("difficulty", "Medium").lower()
                         tags = [tag.lower().replace(' ', '-') for tag in obj.get("tags", [])]
-                        problem_description = obj.get("problem_description", "")
+                        
+                        # USE CONTENT FROM JSON FILE IF AVAILABLE, OTHERWISE FALLBACK TO JSONL
+                        problem_description_from_content = get_problem_description_from_content(content_mapping, question_id)
+                        if problem_description_from_content:
+                            problem_description = problem_description_from_content
+                            print(f"Using content from JSON for question {question_id}")
+                        else:
+                            problem_description = obj.get("problem_description", "")
+                            print(f"Fallback to JSONL description for question {question_id}")
+                        
                         starter_code = obj.get("starter_code", "")
                         input_output = obj.get("input_output", [])
 
@@ -109,12 +160,12 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
                         primary_tag = tags[0] if tags else 'array'
                         category = ensure_category(db, primary_tag)
 
-                        # Parse test cases BEFORE creating question
+                        # Parse test cases BEFORE creating question - ONLY SAMPLE CASES
                         test_cases = parse_test_cases_from_input_output(input_output)
                         
                         # Skip questions with no valid test cases
                         if not test_cases:
-                            print(f"Skipping question {question_id} - no valid test cases")
+                            print(f"Skipping question {question_id} - no valid sample test cases")
                             continue
 
                         # Check if exists
@@ -124,13 +175,52 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
                             continue
 
                         if existing and overwrite:
-                            # Your existing update code...
-                            updated += 1
+                            # Update existing question
+                            existing.title = title
+                            existing.description = f"LeetCode Problem #{question_id}"
+                            existing.problem_statement = problem_description
+                            existing.difficulty = models.Difficulty(difficulty)
+                            existing.category_id = category.id
+                            existing.extra_data = {
+                                **(existing.extra_data or {}),
+                                "question_id": question_id,
+                                "task_id": task_id,
+                                "tags": tags,
+                                "starter_code": starter_code,
+                                "imported_from": "jsonl_human_eval_with_content",
+                                "imported_at": datetime.now().isoformat()
+                            }
+                            db.add(existing)
+                            db.flush()
+
+                            # DELETE ONLY EXISTING SAMPLE TEST CASES, KEEP HIDDEN ONES
+                            existing_sample_cases = db.query(models.QuestionTestCase).filter(
+                                models.QuestionTestCase.question_id == existing.id,
+                                models.QuestionTestCase.is_sample == True
+                            ).all()
                             
-                            # ADD THIS AFTER EACH SUCCESSFUL UPDATE
+                            for tc in existing_sample_cases:
+                                db.delete(tc)
+                            db.flush()
+
+                            # Add new sample test cases
+                            for tc_data in test_cases:
+                                tc = models.QuestionTestCase(
+                                    question_id=existing.id,
+                                    input_data=tc_data["input"],
+                                    expected_output=tc_data["output"],
+                                    is_sample=True,  # SAMPLE CASE
+                                    is_hidden=False, # VISIBLE TO STUDENTS
+                                    weight=1,
+                                    extra_data={"imported_from": "jsonl_human_eval_with_content"}
+                                )
+                                db.add(tc)
+                                test_cases_created += 1
+
+                            updated += 1
                             batch_count += 1
                             if batch_count % BATCH_SIZE == 0:
-                                db.commit()  # Commit every 50 questions
+                                db.commit()
                                 print(f"Committed batch at question {batch_count}")
                         else:
                             # Create new question
@@ -149,33 +239,31 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
                                     "task_id": task_id,
                                     "tags": tags,
                                     "starter_code": starter_code,
-                                    "imported_from": "jsonl_human_eval",
+                                    "imported_from": "jsonl_human_eval_with_content",
                                     "imported_at": datetime.now().isoformat()
                                 }
                             )
                             db.add(question)
                             db.flush()  # Get the ID
 
-                            # Add test cases
+                            # Add ONLY SAMPLE test cases
                             for tc_data in test_cases:
                                 tc = models.QuestionTestCase(
                                     question_id=question.id,
                                     input_data=tc_data["input"],
                                     expected_output=tc_data["output"],
-                                    is_sample=tc_data["is_example"],
-                                    is_hidden=not tc_data["is_example"],
+                                    is_sample=True,  # SAMPLE CASE
+                                    is_hidden=False, # VISIBLE TO STUDENTS
                                     weight=1,
-                                    extra_data={"imported_from": "jsonl_human_eval"}
+                                    extra_data={"imported_from": "jsonl_human_eval_with_content"}
                                 )
                                 db.add(tc)
                                 test_cases_created += 1
 
                             created += 1
-                            
-                            # ADD THIS AFTER EACH SUCCESSFUL CREATION
                             batch_count += 1
                             if batch_count % BATCH_SIZE == 0:
-                                db.commit()  # Commit every 50 questions
+                                db.commit()
                                 print(f"Committed batch at question {batch_count}")
 
                     except json.JSONDecodeError as e:
@@ -198,7 +286,7 @@ def import_from_jsonl_files(db: Session, file_paths: list, overwrite: bool = Fal
             errors.append(f"File error: {str(e)}")
             continue
 
-    # ADD THIS AT THE END - Final commit for remaining records
+    # Final commit for remaining records
     if batch_count % BATCH_SIZE != 0:
         db.commit()
         print(f"Final commit - total questions processed: {batch_count}")

@@ -1,6 +1,6 @@
 // FILE: src/QuestionsManagement.jsx
 
-import { useState, useEffect} from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -142,15 +142,15 @@ export default function QuestionsManagement() {
       // Refresh data after import
       await loadQuestions();
       await loadCategories();
-
-      alert('LeetCode JSONL data imported successfully!');
+      alert('LeetCode JSONL data imported successfully with content from JSON file!');
     } catch (error) {
       console.error('Import failed:', error);
-      alert('Import failed. Please check console for details and ensure JSONL files are in the backend root directory.');
+      alert('Import failed. Please check console for details and ensure both JSONL and JSON files are in the backend directory.');
     } finally {
       setLoading(false);
     }
   };
+
 
   // Load questions from API
   const loadQuestions = async () => {
@@ -180,14 +180,23 @@ export default function QuestionsManagement() {
   // Load test cases for a specific question
   const loadTestCases = async (questionId) => {
     try {
-      const data = await apiCall(`/question-test-cases/?skip=0&limit=100`);
-      const filteredTestCases = Array.isArray(data) ? data.filter(tc => tc.question_id === questionId) : [];
-      setTestCases(filteredTestCases);
+      // Fetch test cases specifically for this question
+      const data = await apiCall(`/questions/${questionId}/test-cases/`);
+      setTestCases(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Failed to load test cases:', error);
-      setTestCases([]);
+      // If the specific endpoint doesn't exist, fall back to filtering
+      try {
+        const allData = await apiCall(`/question-test-cases/?skip=0&limit=1000`);
+        const filteredTestCases = Array.isArray(allData) ?
+          allData.filter(tc => tc.question_id === questionId) : [];
+        setTestCases(filteredTestCases);
+      } catch (fallbackError) {
+        console.error('Failed to load test cases:', fallbackError);
+        setTestCases([]);
+      }
     }
   };
+
 
   // Create or update question
   const handleQuestionSubmit = async () => {
@@ -926,7 +935,7 @@ export default function QuestionsManagement() {
                       checked={testCaseForm.is_hidden}
                       onCheckedChange={(checked) => setTestCaseForm(prev => ({ ...prev, is_hidden: checked }))}
                     />
-                    <Label htmlFor="isHidden">Hidden from Students</Label>
+                    <Label htmlFor="isHidden">Hidden Test case</Label>
                   </div>
                 </div>
 

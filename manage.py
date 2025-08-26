@@ -92,7 +92,7 @@ def start():
         run("docker compose up -d db redis")
         for _ in track(range(10), description="⏳ Warming up DB & Redis..."):
             time.sleep(1)
-        run("docker compose up -d frontend backend adminer logforge-backend logforge-frontend logforge-notifier logforge-autoupdate")
+        run("docker compose up -d backend adminer logforge-backend logforge-frontend logforge-notifier logforge-autoupdate frontend")
     else:
         run("docker compose up -d db redis judge0_db")
         for _ in track(range(10), description="⏳ Warming up DB & Redis..."):

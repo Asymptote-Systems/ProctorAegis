@@ -135,6 +135,7 @@ const Student_UI = () => {
     }
     
     return 0;
+  }, []);
   // API call helper function
   const makeAPICall = useCallback(async (url, options = {}) => {
     const token = localStorage.getItem('access_token');
