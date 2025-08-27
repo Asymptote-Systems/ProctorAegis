@@ -17,8 +17,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreHorizontal, Plus, Calendar, Users, BookOpen, Clock, Eye, Edit, Trash2, Download, LogOut, Settings, BarChart3, TrendingUp, AlertCircle, RefreshCw, FileQuestion, PlusCircle, Search, UserPlus, UserCheck, Info, CheckCircle2, PlayCircle, PauseCircle, StopCircle, BookOpenCheck, ListChecks } from "lucide-react";
+import { MoreHorizontal, Plus, Calendar, Users, BookOpen, Clock, Eye, Edit, Trash2, Download, LogOut, Settings, BarChart3, TrendingUp, AlertCircle, RefreshCw, FileQuestion, PlusCircle, Search, UserPlus, UserCheck, Info, CheckCircle2, PlayCircle, PauseCircle, StopCircle, BookOpenCheck, ListChecks, CircleCheckBig } from "lucide-react";
 import { toast } from "sonner";
+
+import ExamManagementPage from './ExamManagement'
 
 // Import your auth context and api client (adjust paths as needed)
 import { AuthContext } from "./auth/AuthProvider";
@@ -1328,25 +1330,31 @@ export default function TeacherDashboard() {
 
       <div className="container mx-auto p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="dashboard" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="create-exam" className="gap-2">
-              <Plus className="h-4 w-4" />
-              {editingExam ? 'Edit Exam' : 'Create Exam'}
             </TabsTrigger>
             <TabsTrigger value="exams" className="gap-2">
               <BookOpen className="h-4 w-4" />
               All Exams ({exams.length})
             </TabsTrigger>
+            <TabsTrigger value="create-exam" className="gap-2">
+              <Plus className="h-4 w-4" />
+              {editingExam ? 'Edit Exam' : 'Create Exam'}
+            </TabsTrigger>
+            <TabsTrigger value="questions" className="gap-2"><BookOpenCheck className="h-4 w-4" />Questions</TabsTrigger>
+            <TabsTrigger value="results" className="gap-2">
+            <CircleCheckBig className="h-4 w-4" />
+              Results
+            </TabsTrigger>
             <TabsTrigger value="analytics" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               Analytics
             </TabsTrigger>
-            <TabsTrigger value="questions" className="gap-2"><BookOpenCheck className="h-4 w-4" />Questions</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="results"><ExamManagementPage /></TabsContent> 
 
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-6">
