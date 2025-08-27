@@ -27,9 +27,25 @@ def is_wsl() -> bool:
     except FileNotFoundError:
         return False
 
+def is_cgroup_v2() -> bool:
+    """Detect if Linux is using cgroup v2."""
+    return os.path.exists("/sys/fs/cgroup/cgroup.controllers")
+
 IS_WINDOWS = platform.system().lower().startswith("win")
 IS_WSL = is_wsl()
-IS_JUDGE0_SUPPORTED = not (IS_WINDOWS or IS_WSL)
+
+if IS_WINDOWS or IS_WSL:
+    IS_JUDGE0_SUPPORTED = False
+else:
+    if platform.system().lower() == "linux":
+        if is_cgroup_v2():
+            console.print("⚠️ [yellow]Detected cgroup v2: Judge0 cannot run on this system.[/yellow]")
+            IS_JUDGE0_SUPPORTED = False
+        else:
+            IS_JUDGE0_SUPPORTED = True
+    else:
+        IS_JUDGE0_SUPPORTED = False
+
 
 # ------------------- Utility -------------------
 def run(cmd, capture=False):
@@ -123,15 +139,15 @@ def reset_db():
     console.print("⚠️ [red]Resetting DB...[/red]")
     run("docker compose down -v")
     if not IS_JUDGE0_SUPPORTED:
-        run("docker compose up -d db redis")
+        run("docker compose up -d --build db redis")
         for _ in track(range(10), description="⏳ Re-initializing DB & Redis..."):
             time.sleep(1)
-        run("docker compose up -d frontend backend adminer logforge-backend logforge-frontend logforge-notifier logforge-autoupdate")
+        run("docker compose up -d --build frontend backend adminer logforge-backend logforge-frontend logforge-notifier logforge-autoupdate")
     else:
-        run("docker compose up -d db redis judge0_db")
+        run("docker compose up -d --build db redis judge0_db")
         for _ in track(range(10), description="⏳ Re-initializing DB & Redis..."):
             time.sleep(1)
-        run("docker compose up -d")
+        run("docker compose up -d --build")
     console.print("✅ [green]Database reset complete![/green]")
     show_urls()
 
@@ -160,6 +176,42 @@ def clean():
 def urls():
     """Show all service URLs"""
     show_urls()
+
+@cli.command("factory-reset")
+def factory_reset():
+    """Full factory reset (⚠️ destroys everything and rebuilds from scratch)"""
+    console.print("⚠️ [red]This will remove ALL containers, volumes, networks, and rebuild images from scratch![/red]")
+    confirm = console.input("Type CONFIRM to continue: ")
+
+    if confirm.strip() != "CONFIRM":
+        console.print("❌ [red]Factory reset aborted.[/red]")
+        return
+
+    console.print("🧹 [yellow]Performing full cleanup...[/yellow]")
+    run("docker compose down -v --remove-orphans")
+
+    console.print("🔨 [cyan]Rebuilding everything with --no-cache...[/cyan]")
+
+    if not IS_JUDGE0_SUPPORTED:
+        # Windows/WSL path
+        run("docker compose build --no-cache db redis")
+        run("docker compose up -d db redis")
+        for _ in track(range(10), description="⏳ Warming up DB & Redis..."):
+            time.sleep(1)
+        run("docker compose build --no-cache backend adminer logforge-backend logforge-frontend logforge-notifier logforge-autoupdate frontend")
+        run("docker compose up -d backend adminer logforge-backend logforge-frontend logforge-notifier logforge-autoupdate frontend")
+    else:
+        # Linux path (Judge0 supported)
+        run("docker compose build --no-cache db redis judge0_db")
+        run("docker compose up -d db redis judge0_db")
+        for _ in track(range(10), description="⏳ Warming up DB & Redis..."):
+            time.sleep(1)
+        run("docker compose build --no-cache")
+        run("docker compose up -d")
+
+    console.print("✅ [green]Factory reset complete! Everything rebuilt from scratch.[/green]")
+    show_urls()
+
 
 # ------------------- Backup & Restore -------------------
 @cli.command("backup-db")
@@ -214,6 +266,7 @@ def show_menu():
     table.add_row("9", "backup-db", "💾 Backup the database")
     table.add_row("10", "restore-db", "♻️ Restore the database")
     table.add_row("0", "exit", "👋 Exit the manager")
+    table.add_row("-1", "factory-reset", "☠️ BUILD EVERYTHING FROM SCRATCH")
 
     console.print(table)
 
