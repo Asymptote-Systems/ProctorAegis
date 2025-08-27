@@ -1269,19 +1269,52 @@ export default function TeacherDashboard() {
     }
   };
 
+    // Enhanced formatDate function to handle the API date format
   const formatDate = (dateString) => {
     if (!dateString) return '-';
-    const date = new Date(dateString);
     
-    // Handle timezone offset to prevent date shifting
-    const timezoneOffset = date.getTimezoneOffset() * 60000;
-    const adjustedDate = new Date(date.getTime() + timezoneOffset);
-    
-    return adjustedDate.toLocaleDateString() + ' ' + adjustedDate.toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    try {
+      // Handle the API date format "2025-08-23T15:51:00"
+      const date = new Date(dateString);
+      
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+      }
+      
+      const dateOptions = {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      };
+      
+      const timeOptions = {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false // Use 24-hour format to match your API data
+      };
+      
+      return date.toLocaleDateString('en-US', dateOptions) + ' ' + 
+            date.toLocaleTimeString('en-US', timeOptions);
+    } catch (error) {
+      console.error('Error formatting date:', error, dateString);
+      return 'Invalid Date';
+    }
   };
+
+  // Alternative: More detailed format showing duration as well
+  const formatScheduleDetails = (exam) => {
+    const startDate = formatDate(exam.start_time);
+    const endDate = formatDate(exam.end_time);
+    const duration = exam.duration_minutes;
+    
+    return {
+      start: startDate,
+      end: endDate,
+      duration: `${duration} min${duration !== 1 ? 's' : ''}`
+    };
+  };
+
 
   // Show loading spinner while checking authentication
   if (loading) {
@@ -1705,13 +1738,25 @@ export default function TeacherDashboard() {
                               </TableCell>
                               <TableCell className="py-4">
                                 <div className="space-y-1 text-sm">
+                                  {/* Start Time */}
                                   <div className="flex items-center gap-1 text-green-600">
                                     <Calendar className="h-3 w-3" />
+                                    <span className="font-medium">Start:</span>
                                     {formatDate(exam.start_time)}
                                   </div>
+                                  
+                                  {/* End Time */}
                                   <div className="flex items-center gap-1 text-red-600">
                                     <Clock className="h-3 w-3" />
+                                    <span className="font-medium">End:</span>
                                     {formatDate(exam.end_time)}
+                                  </div>
+                                  
+                                  {/* Duration */}
+                                  <div className="flex items-center gap-1 text-blue-600">
+                                    <Clock className="h-3 w-3" />
+                                    <span className="font-medium">Duration:</span>
+                                    {exam.duration_minutes} mins
                                   </div>
                                 </div>
                               </TableCell>

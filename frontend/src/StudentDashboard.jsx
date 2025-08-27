@@ -48,6 +48,7 @@ const glowingDotStyles = `
 export default function StudentDashboard() {
     const { user, loading: authLoading } = useContext(AuthContext);
     const [registeredExams, setRegisteredExams] = useState([]);
+    const [allExamRegistrations, setAllExamRegistrations] = useState([]); // Store all registrations for stats
     const [loading, setLoading] = useState(true);
     const [currentTime, setCurrentTime] = useState(new Date());
     const [startingExam, setStartingExam] = useState(null);
@@ -135,23 +136,46 @@ export default function StudentDashboard() {
             const response = await api.get('/me/registered-exams/');
             if (response.status !== 200) throw new Error('Failed to fetch registered exams');
             const examRegistrations = response.data;
+            
+            console.log('All exam registrations:', examRegistrations);
+            
+            // Store all registrations for stats calculation
+            setAllExamRegistrations(examRegistrations);
+            
+            // Filter out submitted registrations for display only
+            const nonSubmittedRegistrations = examRegistrations.filter(registration => {
+                const isSubmitted = registration.status === 'submitted';
+                if (isSubmitted) {
+                    console.log('Filtering out submitted exam from display:', registration.exam_id, 'status:', registration.status);
+                }
+                return !isSubmitted;
+            });
+            
+            console.log('Non-submitted registrations for display:', nonSubmittedRegistrations);
+            
             const examsWithDetails = await Promise.all(
-                examRegistrations.map(async (registration) => {
+                nonSubmittedRegistrations.map(async (registration) => {
                     try {
                         const examResponse = await api.get(`/exams/${registration.exam_id}`);
+                        const exam = examResponse.data;
+                        
                         return {
                             registration,
-                            exam: examResponse.data
+                            exam,
+                            isSubmitted: false // Since we already filtered out submitted ones
                         };
                     } catch (error) {
-                        return { registration, exam: null };
+                        console.error('Error fetching exam details for registration:', registration.id, error);
+                        return null; // Return null for failed requests
                     }
                 })
             );
 
 
-            // Corrected sorting: Active first, then upcoming (earliest first), then completed (latest first)
-            const validExams = examsWithDetails.filter(item => item.exam);
+            // Filter out null exams and sort
+            const validExams = examsWithDetails.filter(item => item && item.exam);
+            console.log('Valid exams after filtering:', validExams.length);
+            
             const sortedExams = validExams.sort((a, b) => {
                 const statusA = getExamStatus(a.exam);
                 const statusB = getExamStatus(b.exam);
@@ -183,7 +207,10 @@ export default function StudentDashboard() {
 
             setRegisteredExams(sortedExams);
         } catch (error) {
-            toast.error("Failed to load exams", { description: "Could not fetch your registered exams. Please try again." });
+            console.error('Error fetching exams:', error);
+            toast.error("Failed to load exams", { 
+                description: "Could not fetch your registered exams. Please try again." 
+            });
         } finally {
             setLoading(false);
         }
@@ -213,11 +240,31 @@ export default function StudentDashboard() {
     }
 
 
+    // Modified to not include submission status since we're filtering out submitted exams
     function getExamStatus(exam) {
         if (!exam) return 'loading';
+        
         const now = currentTime.getTime();
         const startTime = new Date(exam.start_time).getTime();
         const endTime = new Date(exam.end_time).getTime();
+        
+        if (now < startTime) return 'upcoming';
+        if (now >= startTime && now <= endTime) return 'active';
+        return 'completed';
+    }
+
+
+    // Helper function to get exam status including submitted status
+    function getExamStatusWithSubmission(exam, registration) {
+        if (!exam || !registration) return 'loading';
+        
+        // If the registration is submitted, it's considered completed
+        if (registration.status === 'submitted') return 'completed';
+        
+        const now = currentTime.getTime();
+        const startTime = new Date(exam.start_time).getTime();
+        const endTime = new Date(exam.end_time).getTime();
+        
         if (now < startTime) return 'upcoming';
         if (now >= startTime && now <= endTime) return 'active';
         return 'completed';
@@ -237,6 +284,14 @@ export default function StudentDashboard() {
 
 
     function handleStartExamClick(examData) {
+        // Double-check that this exam is not submitted before allowing start
+        if (examData.registration.status === 'submitted') {
+            toast.error("Cannot start exam", {
+                description: "This exam has already been submitted."
+            });
+            return;
+        }
+        
         setSelectedExamId(examData.registration.exam_id);
         setSelectedExamData(examData);
         setShowStartDialog(true);
@@ -257,6 +312,16 @@ export default function StudentDashboard() {
     async function handleStartExam() {
         if (!selectedExamId || !selectedExamData) return;
 
+        // Additional check before starting
+        if (selectedExamData.registration.status === 'submitted') {
+            toast.error("Cannot start exam", {
+                description: "This exam has already been submitted."
+            });
+            setShowStartDialog(false);
+            setSelectedExamId(null);
+            setSelectedExamData(null);
+            return;
+        }
 
         try {
             setStartingExam(selectedExamId);
@@ -333,6 +398,7 @@ export default function StudentDashboard() {
     }
 
 
+    // Simplified to not include submitted status
     function getStatusBadge(status) {
         switch (status) {
             case 'upcoming':
@@ -378,6 +444,7 @@ export default function StudentDashboard() {
     function formatEndTime(exam, status) {
         if (status !== 'completed') return null;
 
+
         // Parse the end time string directly without Date object conversion
         const endTimeStr = exam.end_time;
         
@@ -385,6 +452,7 @@ export default function StudentDashboard() {
         const endTime = new Date(endTimeStr);
         const now = new Date();
         const diffHours = (now - endTime) / (1000 * 60 * 60);
+
 
         if (diffHours < 24) {
             // Less than a day - show time as-is without timezone conversion
@@ -395,6 +463,41 @@ export default function StudentDashboard() {
         }
     }
 
+
+    // Calculate stats including submitted exams as completed
+    const calculateStats = async () => {
+        const stats = { upcoming: 0, active: 0, completed: 0 };
+        
+        for (const registration of allExamRegistrations) {
+            if (registration.status === 'submitted') {
+                // Submitted exams count as completed
+                stats.completed++;
+            } else {
+                try {
+                    // For non-submitted, we need to fetch exam details to determine status
+                    const examResponse = await api.get(`/exams/${registration.exam_id}`);
+                    const exam = examResponse.data;
+                    const status = getExamStatus(exam);
+                    stats[status]++;
+                } catch (error) {
+                    console.error('Error fetching exam for stats:', error);
+                    // If we can't fetch exam details, we can't determine its status
+                }
+            }
+        }
+        
+        return stats;
+    };
+
+
+    // Use effect to calculate stats when allExamRegistrations changes
+    const [examStats, setExamStats] = useState({ upcoming: 0, active: 0, completed: 0 });
+    
+    useEffect(() => {
+        if (allExamRegistrations.length > 0) {
+            calculateStats().then(setExamStats);
+        }
+    }, [allExamRegistrations, currentTime]); // Include currentTime to recalculate when time changes
 
 
     if (authLoading || loading) {
@@ -407,11 +510,6 @@ export default function StudentDashboard() {
             </div>
         );
     }
-
-
-    const upcomingExams = registeredExams.filter(item => getExamStatus(item.exam) === 'upcoming').length;
-    const activeExams = registeredExams.filter(item => getExamStatus(item.exam) === 'active').length;
-    const completedExams = registeredExams.filter(item => getExamStatus(item.exam) === 'completed').length;
 
 
     return (
@@ -455,7 +553,7 @@ export default function StudentDashboard() {
                 </div>
 
 
-                {/* Stats Cards */}
+                {/* Stats Cards - Now using calculated stats that include submitted exams */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                     <Card className="bg-sky-50 border-sky-100 shadow-none rounded-xl">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -463,7 +561,7 @@ export default function StudentDashboard() {
                             <Calendar className="h-4 w-4 text-sky-600" />
                         </CardHeader>
                         <CardContent>
-                            <span className="text-2xl font-bold text-sky-700">{upcomingExams}</span>
+                            <span className="text-2xl font-bold text-sky-700">{examStats.upcoming}</span>
                             <p className="text-xs text-sky-600">Scheduled soon</p>
                         </CardContent>
                     </Card>
@@ -473,7 +571,7 @@ export default function StudentDashboard() {
                             <Play className="h-4 w-4 text-emerald-600" />
                         </CardHeader>
                         <CardContent>
-                            <span className="text-2xl font-bold text-emerald-700">{activeExams}</span>
+                            <span className="text-2xl font-bold text-emerald-700">{examStats.active}</span>
                             <p className="text-xs text-emerald-600">Available now</p>
                         </CardContent>
                     </Card>
@@ -483,8 +581,8 @@ export default function StudentDashboard() {
                             <CheckCircle className="h-4 w-4 text-slate-500" />
                         </CardHeader>
                         <CardContent>
-                            <span className="text-2xl font-bold text-slate-700">{completedExams}</span>
-                            <p className="text-xs text-slate-600">This semester</p>
+                            <span className="text-2xl font-bold text-slate-700">{examStats.completed}</span>
+                            <p className="text-xs text-slate-600">Submitted + Time expired</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -508,8 +606,8 @@ export default function StudentDashboard() {
                             ) : registeredExams.length === 0 ? (
                                 <div className="text-center py-10">
                                     <BookOpen className="w-10 h-10 text-sky-300 mx-auto mb-3" />
-                                    <h3 className="text-lg font-medium mb-2 text-slate-600">No exams registered</h3>
-                                    <p className="text-slate-500 mb-4">You don't have any exams registered at the moment.</p>
+                                    <h3 className="text-lg font-medium mb-2 text-slate-600">No exams available</h3>
+                                    <p className="text-slate-500 mb-4">You don't have any active exams at the moment.</p>
                                     <Button
                                         variant="outline"
                                         onClick={fetchRegisteredExams}
@@ -530,12 +628,14 @@ export default function StudentDashboard() {
                                         return (
                                             <Card
                                                 key={exam.id}
-                                                className="transition-all border border-sky-100/70 shadow-md hover:shadow-xl bg-white/90 p-0"
+                                                className="transition-all border shadow-md hover:shadow-xl bg-white/90 p-0 border-sky-100/70"
                                             >
                                                 <CardContent className="p-6">
                                                     <div className="flex justify-between items-start mb-3">
                                                         <div className="flex flex-col gap-2 flex-1">
-                                                            <h3 className="text-xl font-semibold text-sky-900">{exam.title}</h3>
+                                                            <h3 className="text-xl font-semibold text-sky-900">
+                                                                {exam.title}
+                                                            </h3>
                                                             <div className="flex items-center gap-2">
                                                                 {getExamTypeBadge(exam.exam_type)}
                                                                 <span className="text-xs text-slate-500">
@@ -543,7 +643,7 @@ export default function StudentDashboard() {
                                                                 </span>
                                                             </div>
                                                         </div>
-                                                        {/* LIVE badge with glowing dot for active exams */}
+                                                        {/* Status badge */}
                                                         <div className="flex flex-col items-end gap-2">
                                                             {getStatusBadge(status)}
                                                         </div>
@@ -640,7 +740,7 @@ export default function StudentDashboard() {
                                                     </div>
 
 
-                                                    {/* Start button moved back below */}
+                                                    {/* Start button - only for active exams */}
                                                     <div className="flex justify-end mt-4">
                                                         {status === 'active' && (
                                                             <Button
