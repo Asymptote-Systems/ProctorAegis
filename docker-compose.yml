@@ -131,6 +131,8 @@ services:
     privileged: true
     <<: *default-logging
     restart: always
+    networks:
+      - app-net
 
   workers:
     image: judge0/judge0:1.13.0
@@ -140,6 +142,8 @@ services:
     privileged: true
     <<: *default-logging
     restart: always
+    networks:
+      - app-net
 
   judge0_db:
     image: postgres:13.0
@@ -148,6 +152,10 @@ services:
       - postgres-data:/var/lib/postgresql/data/
     <<: *default-logging
     restart: always
+    ports:
+      - "5433:5432"
+    networks:
+      - app-net
 
   redis:
     image: redis:6.0
@@ -160,6 +168,8 @@ services:
       - redis-data:/data
     <<: *default-logging
     restart: always
+    networks:
+      - app-net
   
 volumes:
   db_data:
