@@ -65,89 +65,9 @@ services:
       - backend
     restart: always
 
-  logforge-backend:
-    image: madanb13/logforge-backend:latest
-    container_name: ${BACKEND_SERVICE_CONTAINER_NAME:-logforge-backend}
-    environment:
-      PORT: "${BACKEND_SERVICE_PORT:-8001}"
-      NOTIFIER_SERVICE_CONTAINER_NAME: "${NOTIFIER_SERVICE_CONTAINER_NAME:-logforge-notifier}"
-      NOTIFIER_PLAIN_PORT: "${NOTIFIER_PLAIN_PORT:-8083}"
-    networks:
-      - logforge-network
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - logforge_core_data:/app/app/core/data
-    restart: always
-    ports:
-      - "${EXPOSED_BACKEND_PORT:-8001}:${BACKEND_SERVICE_PORT:-8001}"
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-  logforge-frontend:
-    image: madanb13/logforge-frontend:latest
-    container_name: ${FRONTEND_SERVICE_CONTAINER_NAME:-logforge-frontend}
-    environment:
-      VITE_BACKEND_SERVICE_HOST: "http://${BACKEND_SERVICE_CONTAINER_NAME:-logforge-backend}"
-      VITE_BACKEND_SERVICE_PORT: "${BACKEND_SERVICE_PORT:-8001}"
-      VITE_EXPOSED_BACKEND_PORT: "${EXPOSED_BACKEND_PORT:-8001}"
-      VITE_NOTIFIER_PORT: "${NOTIFIER_WEB_PORT:-8085}"
-    ports:
-      - "${EXPOSED_FRONTEND_PORT:-3000}:${FRONTEND_SERVICE_PORT:-3000}"
-    networks:
-      - logforge-network
-    depends_on:
-      - logforge-backend
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-  logforge-notifier:
-    image: madanb13/logforge-notifier:latest
-    container_name: ${NOTIFIER_SERVICE_CONTAINER_NAME:-logforge-notifier}
-    ports:
-      - "${NOTIFIER_PLAIN_PORT:-8083}:8083"
-      - "${NOTIFIER_WEB_PORT:-8085}:8085"
-    volumes:
-      - logforge_notifier_data:/app/data
-      - /etc/localtime:/etc/localtime:ro
-    networks:
-      - logforge-network
-    restart: unless-stopped
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
-  logforge-autoupdate:
-    image: madanb13/logforge-autoupdate:latest
-    container_name: ${AUTOUPDATE_SERVICE_NAME:-logforge-autoupdate}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    restart: always
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
 
-  server:
-    image: judge0/judge0:1.13.0
-    volumes:
-      - ./judge0.conf:/judge0.conf:ro
-    ports:
-      - "2358:2358"
-    privileged: true
-    <<: *default-logging
-    restart: always
 
-  workers:
-    image: judge0/judge0:1.13.0
-    command: ["./scripts/workers"]
-    volumes:
-      - ./judge0.conf:/judge0.conf:ro
-    privileged: true
-    <<: *default-logging
-    restart: always
-
-  judge0_db:
-    image: postgres:13.0
-    env_file: judge0.conf
-    volumes:
-      - postgres-data:/var/lib/postgresql/data/
-    <<: *default-logging
-    restart: always
 
   redis:
     image: redis:6.0

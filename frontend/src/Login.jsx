@@ -72,12 +72,21 @@ export default function Login() {
         localStorage.setItem("user", JSON.stringify(result.user));
       }
 
-      // Navigate based on user role
-      navigate(
-        result.user?.role === "student"
-          ? "/student/dashboard"
-          : "/teacher/dashboard"
-      );
+      // Navigate based on user role - UPDATED TO INCLUDE ADMIN
+      const userRole = result.user?.role;
+
+      if (userRole === "admin") {
+        navigate("/admin/dashboard");
+      } else if (userRole === "teacher") {
+        navigate("/teacher/dashboard");
+      } else if (userRole === "student") {
+        navigate("/student/dashboard");
+      } else {
+        // Fallback for unknown roles
+        setError("Unknown user role. Please contact administrator.");
+        return;
+      }
+
     } catch (err) {
       console.error("Login error:", err);
       setError("Login failed. Please try again.");
@@ -120,13 +129,13 @@ export default function Login() {
 
   return (
     <div className={`min-h-screen transition-colors duration-300 flex flex-col ${isDarkMode
-        ? 'bg-black'
-        : 'bg-white'
+      ? 'bg-black'
+      : 'bg-white'
       }`}>
       {/* Header with Time and Date */}
       <div className={`w-full backdrop-blur-sm border-b shadow-sm transition-colors duration-300 ${isDarkMode
-          ? 'bg-gray-900/80 border-gray-700/20'
-          : 'bg-white/80 border-gray-200/20'
+        ? 'bg-gray-900/80 border-gray-700/20'
+        : 'bg-white/80 border-gray-200/20'
         }`}>
         <div className="container mx-auto px-4 py-3">
           <div className="flex justify-between items-center">
@@ -151,8 +160,8 @@ export default function Login() {
               <button
                 onClick={toggleTheme}
                 className={`p-2 rounded-lg transition-all duration-300 hover:scale-105 ${isDarkMode
-                    ? 'bg-gray-800 hover:bg-gray-700 text-white'
-                    : 'bg-gray-100 hover:bg-gray-200 text-black'
+                  ? 'bg-gray-800 hover:bg-gray-700 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200 text-black'
                   }`}
                 title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
               >
@@ -198,8 +207,8 @@ export default function Login() {
                   <TabsTrigger
                     value="student"
                     className={`flex items-center space-x-2 transition-all duration-300 ${isDarkMode
-                        ? 'data-[state=active]:bg-black data-[state=active]:text-white text-gray-400'
-                        : 'data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-black'
+                      ? 'data-[state=active]:bg-black data-[state=active]:text-white text-gray-400'
+                      : 'data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-black'
                       }`}
                   >
                     <User className="h-4 w-4" />
@@ -208,8 +217,8 @@ export default function Login() {
                   <TabsTrigger
                     value="teacher"
                     className={`flex items-center space-x-2 transition-all duration-300 ${isDarkMode
-                        ? 'data-[state=active]:bg-black data-[state=active]:text-white text-gray-400'
-                        : 'data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-black'
+                      ? 'data-[state=active]:bg-black data-[state=active]:text-white text-gray-400'
+                      : 'data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-black'
                       }`}
                   >
                     <GraduationCap className="h-4 w-4" />
@@ -236,8 +245,8 @@ export default function Login() {
                           onChange={(e) => handleInputChange('studentId', e.target.value)}
                           onKeyPress={handleKeyPress}
                           className={`pl-10 h-12 transition-all duration-300 ${isDarkMode
-                              ? 'bg-gray-800 border-gray-600 text-white placeholder:text-gray-400 focus:border-white focus:ring-white'
-                              : 'bg-white border-gray-300 text-black placeholder:text-gray-500 focus:border-black focus:ring-black'
+                            ? 'bg-gray-800 border-gray-600 text-white placeholder:text-gray-400 focus:border-white focus:ring-white'
+                            : 'bg-white border-gray-300 text-black placeholder:text-gray-500 focus:border-black focus:ring-black'
                             }`}
                           required
                         />
@@ -258,8 +267,8 @@ export default function Login() {
                           onChange={(e) => handleInputChange('studentPassword', e.target.value)}
                           onKeyPress={handleKeyPress}
                           className={`pr-10 h-12 transition-all duration-300 ${isDarkMode
-                              ? 'bg-gray-800 border-gray-600 text-white placeholder:text-gray-400 focus:border-white focus:ring-white'
-                              : 'bg-white border-gray-300 text-black placeholder:text-gray-500 focus:border-black focus:ring-black'
+                            ? 'bg-gray-800 border-gray-600 text-white placeholder:text-gray-400 focus:border-white focus:ring-white'
+                            : 'bg-white border-gray-300 text-black placeholder:text-gray-500 focus:border-black focus:ring-black'
                             }`}
                           required
                         />
@@ -276,8 +285,8 @@ export default function Login() {
                     <Button
                       onClick={handleLogin}
                       className={`w-full h-12 transition-all duration-300 ${isDarkMode
-                          ? 'bg-white text-black hover:bg-gray-200'
-                          : 'bg-black text-white hover:bg-gray-800'
+                        ? 'bg-white text-black hover:bg-gray-200'
+                        : 'bg-black text-white hover:bg-gray-800'
                         }`}
                       disabled={isLoading}
                     >
@@ -313,8 +322,8 @@ export default function Login() {
                           onChange={(e) => handleInputChange('teacherEmail', e.target.value)}
                           onKeyPress={handleKeyPress}
                           className={`pl-10 h-12 transition-all duration-300 ${isDarkMode
-                              ? 'bg-gray-800 border-gray-600 text-white placeholder:text-gray-400 focus:border-white focus:ring-white'
-                              : 'bg-white border-gray-300 text-black placeholder:text-gray-500 focus:border-black focus:ring-black'
+                            ? 'bg-gray-800 border-gray-600 text-white placeholder:text-gray-400 focus:border-white focus:ring-white'
+                            : 'bg-white border-gray-300 text-black placeholder:text-gray-500 focus:border-black focus:ring-black'
                             }`}
                           required
                         />
@@ -335,8 +344,8 @@ export default function Login() {
                           onChange={(e) => handleInputChange('teacherPassword', e.target.value)}
                           onKeyPress={handleKeyPress}
                           className={`pr-10 h-12 transition-all duration-300 ${isDarkMode
-                              ? 'bg-gray-800 border-gray-600 text-white placeholder:text-gray-400 focus:border-white focus:ring-white'
-                              : 'bg-white border-gray-300 text-black placeholder:text-gray-500 focus:border-black focus:ring-black'
+                            ? 'bg-gray-800 border-gray-600 text-white placeholder:text-gray-400 focus:border-white focus:ring-white'
+                            : 'bg-white border-gray-300 text-black placeholder:text-gray-500 focus:border-black focus:ring-black'
                             }`}
                           required
                         />
@@ -353,8 +362,8 @@ export default function Login() {
                     <Button
                       onClick={handleLogin}
                       className={`w-full h-12 transition-all duration-300 ${isDarkMode
-                          ? 'bg-white text-black hover:bg-gray-200'
-                          : 'bg-black text-white hover:bg-gray-800'
+                        ? 'bg-white text-black hover:bg-gray-200'
+                        : 'bg-black text-white hover:bg-gray-800'
                         }`}
                       disabled={isLoading}
                     >
@@ -392,8 +401,8 @@ export default function Login() {
 
       {/* Footer */}
       <footer className={`backdrop-blur-sm border-t py-4 transition-colors duration-300 ${isDarkMode
-          ? 'bg-gray-900/80 border-gray-700/20'
-          : 'bg-white/80 border-gray-200/20'
+        ? 'bg-gray-900/80 border-gray-700/20'
+        : 'bg-white/80 border-gray-200/20'
         }`}>
         <div className={`container mx-auto px-4 text-center text-sm transition-colors duration-300 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
           }`}>
