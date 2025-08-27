@@ -529,7 +529,7 @@ const ManualTeacherCreation = ({ onTeacherCreated }) => {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
+        <Button className="bg-purple-600 hover:bg-purple-700 text-white">
           <GraduationCap className="h-4 w-4 mr-2" />
           Add Teacher
         </Button>
@@ -699,7 +699,7 @@ const ManualUserCreation = ({ onUserCreated }) => {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
+        <Button className="bg-green-600 hover:bg-green-700 text-white">
           <UserPlus className="h-4 w-4 mr-2" />
           Add Single Student
         </Button>
@@ -1017,16 +1017,13 @@ const ExcelUpload = ({ onUploadComplete }) => {
 
         {/* File Upload */}
         <div className="flex items-center gap-4">
-          <div className="flex-1 relative">
-            <Input
-              type="file"
-              accept=".xlsx"
-              onChange={handleFileChange}
-              className="file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 file:cursor-pointer text-sm text-gray-600"
-              disabled={isUploading}
-              placeholder="Choose Excel file..."
-            />
-          </div>
+          <Input
+            type="file"
+            accept=".xlsx"
+            onChange={handleFileChange}
+            className="flex-1"
+            disabled={isUploading}
+          />
           <Button
             onClick={handleUpload}
             disabled={!file || isUploading}
@@ -1045,7 +1042,6 @@ const ExcelUpload = ({ onUploadComplete }) => {
             )}
           </Button>
         </div>
-
 
         {/* Progress Bar */}
         {isUploading && uploadProgress > 0 && (
@@ -1639,7 +1635,7 @@ const AdminDashboard = () => {
                   Add individual accounts one at a time
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 <ManualUserCreation onUserCreated={handleUserCreated} />
                 <ManualTeacherCreation onTeacherCreated={handleTeacherCreated} />
               </CardContent>
