@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 import uuid
 import aiohttp
 from ..services.submission_processor import submission_processor
+import os
 
 router = APIRouter()
 
@@ -15,8 +16,9 @@ async def process_submissions(
     try:
         # Fetch submissions for the exam
         async with aiohttp.ClientSession() as session:
+            host_ip = os.getenv("HOST_IP", "localhost")
             async with session.get(
-                f"http://localhost:8000/exams/{exam_id}/submissions?skip=0&limit=1000"
+                f"http://{host_ip}:8000/exams/{exam_id}/submissions?skip=0&limit=1000"
             ) as response:
                 if response.status != 200:
                     raise HTTPException(

@@ -28,7 +28,9 @@ import {
   Database
 } from "lucide-react";
 
-const API_BASE_URL = 'http://localhost:8000';
+const host_ip = import.meta.env.HOST_IP || "localhost";
+
+const API_BASE_URL = `http://${host_ip}:8000`;
 
 // Utility function for API calls
 const apiCall = async (endpoint, options = {}) => {

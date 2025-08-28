@@ -1,7 +1,9 @@
 // frontend/src/api/apiClient.js
 import axios from "axios";
 
-const API_BASE = "http://localhost:8000";
+const host_ip = import.meta.env.HOST_IP || "localhost";
+
+const API_BASE = `http://${host_ip}:8000`;
 
 const api = axios.create({
   baseURL: API_BASE,
