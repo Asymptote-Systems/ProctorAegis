@@ -342,7 +342,7 @@ class SubmissionProcessor:
     async def get_test_cases(self, question_id: str) -> List[Dict]:
         """Fetch test cases for a question"""
         async with aiohttp.ClientSession() as session:
-            host_ip = os.getenv("HOST_IP", "localhost")
+            host_ip = os.getenv("VITE_HOST_IP")
             async with session.get(
                 f"http://{host_ip}:8000/questions/{question_id}/test-cases/"
             ) as response:
@@ -421,7 +421,7 @@ class SubmissionProcessor:
         print(f"Saving submission result for {submission_result_data['submission_id']}")
         
         async with aiohttp.ClientSession() as session:
-            host_ip = os.getenv("HOST_IP", "localhost")
+            host_ip = os.getenv("VITE_HOST_IP")
             async with session.post(
                 f"http://{host_ip}:8000/submission-results/",
                 json=submission_result_data,

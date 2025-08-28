@@ -63,7 +63,7 @@ base_origins = [
     "http://127.0.0.1:8080"    # Alternative localhost
 ]
 
-host_ip = os.getenv("HOST_IP")
+host_ip = os.getenv("VITE_HOST_IP")
 if host_ip:
     base_origins.extend([
         f"http://{host_ip}:5173",  # Your main frontend via IP

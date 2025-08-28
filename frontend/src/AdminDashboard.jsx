@@ -30,7 +30,7 @@ import LogoutButton from './LogoutButton';
 import axios from 'axios';
 
 // API Client - ENHANCED VERSION with duplicate check and teacher support
-const host_ip = import.meta.env.HOST_IP || "localhost";
+const host_ip = import.meta.env.VITE_HOST_IP;
 
 const apiClient = {
   baseURL: `http://${host_ip}:8000`,

@@ -16,7 +16,7 @@ async def process_submissions(
     try:
         # Fetch submissions for the exam
         async with aiohttp.ClientSession() as session:
-            host_ip = os.getenv("HOST_IP", "localhost")
+            host_ip = os.getenv("VITE_HOST_IP")
             async with session.get(
                 f"http://{host_ip}:8000/exams/{exam_id}/submissions?skip=0&limit=1000"
             ) as response:
