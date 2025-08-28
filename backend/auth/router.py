@@ -61,12 +61,18 @@ def login(payload: LoginRequest, response: Response, request: Request, db: Sessi
     cookie_opts = _cookie_options()
     # set httpOnly refresh cookie
     response.set_cookie("refresh_token", refresh_token,
-                        max_age=settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60,
-                        **cookie_opts)
+                    max_age=settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60,
+                    httponly=True,
+                    secure=False,  # Set to True if using HTTPS
+                    samesite="none",  # Changed from "lax" to "none" for cross-origin
+                    path="/")
     # also set a non-httpOnly csrf cookie (frontend can read this)
     response.set_cookie("csrf_token", csrf_token,
-                        max_age=settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60,
-                        httponly=False, secure=settings.COOKIE_SECURE, samesite="lax", path="/")
+                    max_age=settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60,
+                    httponly=False, 
+                    secure=False,  # Set to True if using HTTPS  
+                    samesite="none",  # Changed from "lax" to "none" for cross-origin
+                    path="/")
 
     # audit success
     crud.create_audit_log(db, obj_in=schemas.AuditLogCreate(
