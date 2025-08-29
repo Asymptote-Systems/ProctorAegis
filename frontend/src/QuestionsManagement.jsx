@@ -28,7 +28,9 @@ import {
   Database
 } from "lucide-react";
 
-const API_BASE_URL = 'http://localhost:8000';
+const host_ip = import.meta.env.VITE_HOST_IP;
+
+const API_BASE_URL = `http://${host_ip}:8000`;
 
 // Utility function for API calls
 const apiCall = async (endpoint, options = {}) => {
@@ -398,8 +400,8 @@ export default function QuestionsManagement() {
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="questions">Questions</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
+          <TabsTrigger value="questions">Questions</TabsTrigger>
         </TabsList>
 
         {/* Questions Tab */}

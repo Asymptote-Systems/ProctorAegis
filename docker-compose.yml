@@ -36,7 +36,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "0.0.0.0:8000:8000"
     restart: unless-stopped
     networks:
       - app-net
@@ -57,7 +57,10 @@ services:
       - app-net
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        - VITE_HOST_IP=${VITE_HOST_IP}
     container_name: vite-frontend
     ports:
       - "5173:80" # Access React via http://localhost:5173

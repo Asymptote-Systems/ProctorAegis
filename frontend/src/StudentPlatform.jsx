@@ -217,7 +217,8 @@ const Student_UI = () => {
     console.log('Submitting answer:', submissionData);
 
     try {
-      const result = await makeAPICall('http://localhost:8000/submissions/', {
+      const host_ip = import.meta.env.VITE_HOST_IP;
+      const result = await makeAPICall(`http://${host_ip}:8000/submissions/`, {
         method: 'POST',
         body: JSON.stringify(submissionData)
       });
@@ -630,13 +631,14 @@ const Student_UI = () => {
           examCreatedByRef.current = initialState.examCreatedBy;
           console.log('Restored teacher ID from localStorage:', initialState.examCreatedBy);
         }
+        const host_ip = import.meta.env.VITE_HOST_IP;
 
         // Fetch questions and exam details
         const [questionsResponse, examResponse] = await Promise.all([
-          fetch(`http://localhost:8000/exams/${examId}/questions-with-details/`, {
+          fetch(`http://${host_ip}:8000/exams/${examId}/questions-with-details/`, {
             headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
           }),
-          fetch(`http://localhost:8000/exams/${examId}/`, {
+          fetch(`http://${host_ip}:8000/exams/${examId}/`, {
             headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
           })
         ]);

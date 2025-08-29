@@ -4,6 +4,7 @@ Generated routes for all models
 """
 from typing import List
 from uuid import UUID
+import os
 
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Response, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,25 +33,52 @@ app = FastAPI(title="Online Exam System API", version="1.0.0")
 # --- Security headers middleware (basic hardening) ---
 @app.middleware("http")
 async def set_security_headers(request: Request, call_next):
+    # Handle OPTIONS requests first
+    if request.method == "OPTIONS":
+        response = Response()
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+    
     response: Response = await call_next(request)
     
-    # Don't add security headers to OPTIONS requests (CORS preflight)
-    if request.method != "OPTIONS":
-        response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("X-XSS-Protection", "0")
-        response.headers.setdefault("Referrer-Policy", "no-referrer")
-        response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=()")
+    # Add security headers for non-OPTIONS requests
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("X-XSS-Protection", "0")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=()")
     
     return response
 
+
+base_origins = [
+    "http://localhost:5173",   # Your main frontend
+    "http://localhost:3000",   # Logforge frontend  
+    "http://localhost:8080",   # Adminer (if it makes API calls)
+    "http://127.0.0.1:5173",   # Alternative localhost
+    "http://127.0.0.1:3000",   # Alternative localhost
+    "http://127.0.0.1:8080"    # Alternative localhost
+]
+
+host_ip = os.getenv("VITE_HOST_IP")
+if host_ip:
+    base_origins.extend([
+        f"http://{host_ip}:5173",  # Your main frontend via IP
+        f"http://{host_ip}:3000",  # Logforge frontend via IP
+        f"http://{host_ip}:8080"   # Adminer via IP (if needed)
+    ])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=base_origins,  
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
 
 app.include_router(auth_router)
 

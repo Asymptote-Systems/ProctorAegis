@@ -5,6 +5,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
+# Pass build-time ARG to Vite
+ARG VITE_HOST_IP
+ENV VITE_HOST_IP=$VITE_HOST_IP
+
 COPY . .
 RUN npm run build
 

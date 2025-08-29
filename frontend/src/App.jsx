@@ -16,18 +16,22 @@ import APITest from './APITest.jsx';
 import Forbidden from './Forbidden.jsx';
 import ExamManagementPage from './ExamManagement'
 import SubmissionResultsDashboard from "./SubmissionResultsDashboard";
+import ProctorAegisHomepage from './ProctorAegisHomepage.jsx';
+
 
 function App() {
   return (
     <AuthProvider>
       <>
         <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
+           {/* Homepage route - accessible to everyone */}
+           <Route path="/" element={<ProctorAegisHomepage />} />
+          
+          {/* Redirect /home to homepage if needed */}
+          <Route path="/home" element={<Navigate to="/" replace />} />
 
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/api" element={<APITest />} />
-
           {/* Protected Student Routes */}
           {/* <Route 
             path="/student/dashboard" 

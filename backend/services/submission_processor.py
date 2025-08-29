@@ -6,6 +6,7 @@ from uuid import UUID
 from datetime import datetime
 from fastapi import HTTPException
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -341,8 +342,9 @@ class SubmissionProcessor:
     async def get_test_cases(self, question_id: str) -> List[Dict]:
         """Fetch test cases for a question"""
         async with aiohttp.ClientSession() as session:
+            host_ip = os.getenv("VITE_HOST_IP")
             async with session.get(
-                f"http://localhost:8000/questions/{question_id}/test-cases/"
+                f"http://{host_ip}:8000/questions/{question_id}/test-cases/"
             ) as response:
                 if response.status == 200:
                     test_cases = await response.json()
@@ -419,8 +421,9 @@ class SubmissionProcessor:
         print(f"Saving submission result for {submission_result_data['submission_id']}")
         
         async with aiohttp.ClientSession() as session:
+            host_ip = os.getenv("VITE_HOST_IP")
             async with session.post(
-                "http://localhost:8000/submission-results/",
+                f"http://{host_ip}:8000/submission-results/",
                 json=submission_result_data,
                 headers={
                     "accept": "application/json",
