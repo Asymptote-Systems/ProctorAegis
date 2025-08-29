@@ -45,7 +45,7 @@ class ExamStatus(enum.Enum):
 
 class RegistrationStatus(enum.Enum):
     PENDING = "pending"
-    APPROVED = "approved"
+    SUBMITTED = "submitted"
     REJECTED = "rejected"
     CANCELLED = "cancelled"
 
