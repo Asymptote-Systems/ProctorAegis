@@ -26,6 +26,14 @@ import {
   Tag,
   Database
 } from "lucide-react";
+// Add these imports to your existing imports section
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
 
 const host_ip = import.meta.env.VITE_HOST_IP;
 const API_BASE_URL = `http://${host_ip}:8000`;
@@ -443,6 +451,7 @@ export default function QuestionsManagement() {
 
   return (
     <div className="space-y-6">
+      <TooltipProvider>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="categories">Categories</TabsTrigger>
@@ -603,6 +612,8 @@ export default function QuestionsManagement() {
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -610,6 +621,13 @@ export default function QuestionsManagement() {
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Edit Question</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -621,6 +639,13 @@ export default function QuestionsManagement() {
                                 >
                                   <TestTube className="h-4 w-4" />
                                 </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Manage Test Cases</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -631,6 +656,11 @@ export default function QuestionsManagement() {
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Delete Question</p>
+                                  </TooltipContent>
+                                </Tooltip>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -728,6 +758,8 @@ export default function QuestionsManagement() {
                       <div className="flex justify-between items-start">
                         <CardTitle className="text-lg">{category.name}</CardTitle>
                         <div className="flex items-center gap-1">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -735,6 +767,13 @@ export default function QuestionsManagement() {
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Edit Category</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -745,6 +784,11 @@ export default function QuestionsManagement() {
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Delete Category</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       </div>
                     </CardHeader>
@@ -1219,7 +1263,7 @@ export default function QuestionsManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete "{deleteTarget?.name}". This action cannot be undone.
+              This will permanently delete this test case. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1230,6 +1274,7 @@ export default function QuestionsManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </TooltipProvider>
     </div>
   );
 }
