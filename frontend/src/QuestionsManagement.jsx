@@ -1,5 +1,4 @@
 // FILE: src/QuestionsManagement.jsx
-
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -29,14 +28,12 @@ import {
 } from "lucide-react";
 
 const host_ip = import.meta.env.VITE_HOST_IP;
-
 const API_BASE_URL = `http://${host_ip}:8000`;
 
 // Utility function for API calls
 const apiCall = async (endpoint, options = {}) => {
   try {
     const token = localStorage.getItem('access_token');
-
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers: {
         'Content-Type': 'application/json',
@@ -49,7 +46,6 @@ const apiCall = async (endpoint, options = {}) => {
     if (!response.ok) {
       throw new Error(`API call failed: ${response.status}`);
     }
-
     return await response.json();
   } catch (error) {
     console.error('API Error:', error);
@@ -67,6 +63,10 @@ export default function QuestionsManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterDifficulty, setFilterDifficulty] = useState("all");
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(50);
 
   // Dialog states
   const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false);
@@ -122,7 +122,12 @@ export default function QuestionsManagement() {
     }
   }, [currentStep]);
 
-  // Helper function to get tags (no more company tags)
+  // Reset pagination when filtering
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterCategory, filterDifficulty]);
+
+  // Helper function to get tags
   const getTags = (question) => {
     return question.extra_data?.tags || [];
   };
@@ -153,13 +158,41 @@ export default function QuestionsManagement() {
     }
   };
 
-
   // Load questions from API
   const loadQuestions = async () => {
     setLoading(true);
     try {
-      const data = await apiCall('/questions/?skip=0&limit=1000');
-      setQuestions(Array.isArray(data) ? data : []);
+      const data = await apiCall('/questions/?skip=0&limit=10000');
+
+      if (Array.isArray(data)) {
+        // Sort questions: LeetCode questions by question_id, then new questions at top
+        const sortedQuestions = data.sort((a, b) => {
+          const aQuestionId = a.extra_data?.question_id;
+          const bQuestionId = b.extra_data?.question_id;
+
+          // If both have question_id (LeetCode questions), sort by question_id numerically
+          if (aQuestionId && bQuestionId) {
+            return parseInt(aQuestionId) - parseInt(bQuestionId);
+          }
+
+          // If only a has question_id, b comes first (new questions on top)
+          if (!aQuestionId && bQuestionId) {
+            return -1;
+          }
+
+          // If only b has question_id, a comes first (new questions on top)  
+          if (aQuestionId && !bQuestionId) {
+            return 1;
+          }
+
+          // If neither has question_id (both are new), sort by creation date (newest first)
+          return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+        });
+
+        setQuestions(sortedQuestions);
+      } else {
+        setQuestions([]);
+      }
     } catch (error) {
       console.error('Failed to load questions:', error);
       setQuestions([]);
@@ -199,7 +232,6 @@ export default function QuestionsManagement() {
     }
   };
 
-
   // Create or update question
   const handleQuestionSubmit = async () => {
     setLoading(true);
@@ -207,12 +239,25 @@ export default function QuestionsManagement() {
       const endpoint = editingQuestion ? `/questions/${editingQuestion.id}` : '/questions/';
       const method = editingQuestion ? 'PUT' : 'POST';
 
-      await apiCall(endpoint, {
+      const result = await apiCall(endpoint, {
         method,
         body: JSON.stringify(questionForm),
       });
 
-      await loadQuestions();
+      if (editingQuestion) {
+        // For updates, keep the question in its current position
+        setQuestions(prev => prev.map(q =>
+          q.id === editingQuestion.id ? result : q
+        ));
+      } else {
+        // For new questions, add to the top (before LeetCode questions)
+        setQuestions(prev => {
+          const leetcodeQuestions = prev.filter(q => q.extra_data?.question_id);
+          const newQuestions = prev.filter(q => !q.extra_data?.question_id);
+
+          return [result, ...newQuestions, ...leetcodeQuestions];
+        });
+      }
 
       setIsEditorFullScreen(false);
       setIsQuestionDialogOpen(false);
@@ -399,9 +444,13 @@ export default function QuestionsManagement() {
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="questions">Questions</TabsTrigger>
+          <TabsTrigger value="testcases">
+            Test Cases
+            {selectedQuestionForTestCases && ` (${testCases.length})`}
+          </TabsTrigger>
         </TabsList>
 
         {/* Questions Tab */}
@@ -482,7 +531,7 @@ export default function QuestionsManagement() {
                 </Select>
               </div>
 
-              {/* Questions Table - Updated without Company Tags column */}
+              {/* Questions Table */}
               <div className="border rounded-lg">
                 <Table>
                   <TableHeader>
@@ -510,92 +559,137 @@ export default function QuestionsManagement() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredQuestions.map((question) => (
-                        <TableRow key={question.id}>
-                          <TableCell className="font-medium">
-                            <div>
-                              <p className="font-semibold">{question.title}</p>
-                              <p className="text-sm text-gray-500 truncate max-w-xs">
-                                {question.description}
-                              </p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {getCategoryName(question.category_id)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getDifficultyColor(question.difficulty)}>
-                              {question.difficulty}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1 max-w-xs">
-                              {getTags(question).slice(0, 3).map((tag) => (
-                                <Badge key={tag} variant="outline" className="text-xs bg-blue-50">
-                                  {tag}
-                                </Badge>
-                              ))}
-                              {getTags(question).length > 3 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{getTags(question).length - 3}
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>{question.max_score}</TableCell>
-                          <TableCell>
-                            <Badge variant={question.is_active ? "default" : "secondary"}>
-                              {question.is_active ? "Active" : "Inactive"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditQuestion(question)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedQuestionForTestCases(question.id);
-                                  loadTestCases(question.id);
-                                  setTestCaseForm({
-                                    input_data: '',
-                                    expected_output: '',
-                                    is_sample: false,
-                                    is_hidden: false,
-                                    extra_data: {},
-                                    question_id: question.id
-                                  });
-                                  setIsTestCaseDialogOpen(true);
-                                }}
-                              >
-                                <TestTube className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setDeleteTarget({ type: 'question', id: question.id, name: question.title });
-                                  setDeleteDialogOpen(true);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      filteredQuestions
+                        .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                        .map((question) => (
+                          <TableRow key={question.id}>
+                            <TableCell className="font-medium">
+                              <div>
+                                <p className="font-semibold">{question.title}</p>
+                                <p className="text-sm text-gray-500 truncate max-w-xs">
+                                  {question.description}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {getCategoryName(question.category_id)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getDifficultyColor(question.difficulty)}>
+                                {question.difficulty}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1 max-w-xs">
+                                {getTags(question).slice(0, 3).map((tag) => (
+                                  <Badge key={tag} variant="outline" className="text-xs bg-blue-50">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                                {getTags(question).length > 3 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    +{getTags(question).length - 3}
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>{question.max_score}</TableCell>
+                            <TableCell>
+                              <Badge variant={question.is_active ? "default" : "secondary"}>
+                                {question.is_active ? "Active" : "Inactive"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditQuestion(question)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedQuestionForTestCases(question.id);
+                                    loadTestCases(question.id);
+                                    setActiveTab("testcases");
+                                  }}
+                                >
+                                  <TestTube className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setDeleteTarget({ type: 'question', id: question.id, name: question.title });
+                                    setDeleteDialogOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
                     )}
                   </TableBody>
                 </Table>
               </div>
+
+              {/* Pagination Controls */}
+              {filteredQuestions.length > 0 && (
+                <div className="flex items-center justify-between space-x-2 py-4">
+                  <div className="text-sm text-gray-700">
+                    Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredQuestions.length)} to{' '}
+                    {Math.min(currentPage * itemsPerPage, filteredQuestions.length)} of{' '}
+                    {filteredQuestions.length} questions
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm">Page</span>
+                      <Input
+                        type="number"
+                        min="1"
+                        max={Math.ceil(filteredQuestions.length / itemsPerPage)}
+                        value={currentPage}
+                        onChange={(e) => {
+                          const page = parseInt(e.target.value);
+                          if (page >= 1 && page <= Math.ceil(filteredQuestions.length / itemsPerPage)) {
+                            setCurrentPage(page);
+                          }
+                        }}
+                        className="w-16 h-8 text-center"
+                      />
+                      <span className="text-sm">of {Math.ceil(filteredQuestions.length / itemsPerPage)}</span>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(filteredQuestions.length / itemsPerPage)))}
+                      disabled={currentPage === Math.ceil(filteredQuestions.length / itemsPerPage)}
+                    >
+                      Next
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -671,9 +765,122 @@ export default function QuestionsManagement() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Test Cases Tab */}
+        <TabsContent value="testcases" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="flex items-center">
+                    <TestTube className="mr-2 h-5 w-5" />
+                    Test Cases
+                    {selectedQuestionForTestCases && (
+                      <Badge variant="outline" className="ml-2">
+                        Question Selected
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    {selectedQuestionForTestCases
+                      ? `Manage test cases for the selected question`
+                      : `Select a question from the Questions tab to manage its test cases`
+                    }
+                  </CardDescription>
+                </div>
+                {selectedQuestionForTestCases && (
+                  <Button onClick={() => {
+                    setTestCaseForm(prev => ({
+                      ...prev,
+                      question_id: selectedQuestionForTestCases
+                    }));
+                    setIsTestCaseDialogOpen(true);
+                  }}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Test Case
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+
+            <CardContent>
+              {!selectedQuestionForTestCases ? (
+                <div className="text-center py-8">
+                  <TestTube className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No question selected</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Go to the Questions tab and click the test tube icon to select a question.
+                  </p>
+                </div>
+              ) : testCases.length === 0 ? (
+                <div className="text-center py-8">
+                  <TestTube className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No test cases</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Get started by creating a new test case for this question.
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Input</TableHead>
+                      <TableHead>Expected Output</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Visibility</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {testCases.map((testCase) => (
+                      <TableRow key={testCase.id}>
+                        <TableCell>
+                          <code className="bg-gray-100 px-2 py-1 rounded text-sm">
+                            {testCase.input_data?.substring(0, 50)}
+                            {testCase.input_data?.length > 50 && '...'}
+                          </code>
+                        </TableCell>
+                        <TableCell>
+                          <code className="bg-gray-100 px-2 py-1 rounded text-sm">
+                            {testCase.expected_output?.substring(0, 50)}
+                            {testCase.expected_output?.length > 50 && '...'}
+                          </code>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={testCase.is_sample ? "default" : "secondary"}>
+                            {testCase.is_sample ? "Sample" : "Test"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={testCase.is_hidden ? "destructive" : "default"}>
+                            {testCase.is_hidden ? "Hidden" : "Visible"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setDeleteTarget({ type: 'testcase', id: testCase.id });
+                                setDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
-      {/* Question Create/Edit Dialog - Updated to show tags instead of company tags */}
+      {/* Question Create/Edit Dialog */}
       {!isEditorFullScreen && (
         <Dialog open={isQuestionDialogOpen} onOpenChange={setIsQuestionDialogOpen}>
           <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
@@ -811,10 +1018,7 @@ export default function QuestionsManagement() {
         </Dialog>
       )}
 
-      {/* Rest of your existing dialogs and components remain the same... */}
-      {/* Fullscreen HTMLEditor, Category Dialog, Test Cases Dialog, Delete Dialog */}
-
-      {/* Fullscreen HTMLEditor - Render separately when in fullscreen mode */}
+      {/* Fullscreen HTMLEditor */}
       {isEditorFullScreen && currentStep === 2 && (
         <HTMLEditor
           value={questionForm.problem_statement}

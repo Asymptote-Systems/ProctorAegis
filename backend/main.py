@@ -325,6 +325,7 @@ def read_questions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
     questions = crud.get_questions(db, skip=skip, limit=limit)
     return questions
 
+
 @app.get("/questions/{question_id}", response_model=schemas.Question)
 def read_question(question_id: UUID, db: Session = Depends(get_db)):
     db_question = crud.get_question(db, id=question_id)
