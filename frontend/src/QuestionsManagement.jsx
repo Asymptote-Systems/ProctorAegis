@@ -24,7 +24,8 @@ import {
   ArrowRight,
   TestTube,
   Tag,
-  Database
+  Database,
+  Clock
 } from "lucide-react";
 // Add these imports to your existing imports section
 import {
@@ -449,6 +450,13 @@ export default function QuestionsManagement() {
     }
   };
 
+  // Add this helper function near the top of your component, after other helper functions
+  const getSelectedQuestionForTestCases = () => {
+    return selectedQuestionForTestCases ?
+      questions.find(q => q.id === selectedQuestionForTestCases) : null;
+  };
+
+
   return (
     <div className="space-y-6">
       <TooltipProvider>
@@ -555,19 +563,22 @@ export default function QuestionsManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8">
-                          Loading questions...
-                        </TableCell>
-                      </TableRow>
-                    ) : filteredQuestions.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                          No questions found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
+                      {loading ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-8">
+                            <div className="flex items-center justify-center gap-2 text-gray-500">
+                              <Clock className="h-6 w-6 animate-spin" />
+                              <span>Loading questions, do not refresh</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : filteredQuestions.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                            No questions found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
                       filteredQuestions
                         .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                         .map((question) => (
@@ -816,21 +827,26 @@ export default function QuestionsManagement() {
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
-                  <CardTitle className="flex items-center">
-                    <TestTube className="mr-2 h-5 w-5" />
-                    Test Cases
-                    {selectedQuestionForTestCases && (
-                      <Badge variant="outline" className="ml-2">
-                        Question Selected
-                      </Badge>
-                    )}
-                  </CardTitle>
-                  <CardDescription>
-                    {selectedQuestionForTestCases
-                      ? `Manage test cases for the selected question`
-                      : `Select a question from the Questions tab to manage its test cases`
-                    }
-                  </CardDescription>
+                    <CardTitle className="flex items-center">
+                      <TestTube className="mr-2 h-5 w-5" />
+                      Test Cases
+                      {getSelectedQuestionForTestCases() && (
+                        <span className="text-base font-normal text-blue-700 ml-2">
+                          - {getSelectedQuestionForTestCases().title}
+                        </span>
+                      )}
+                      {selectedQuestionForTestCases && (
+                        <Badge variant="outline" className="ml-2">
+                          Question Selected
+                        </Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription>
+                      {selectedQuestionForTestCases
+                        ? `Manage test cases for: "${getSelectedQuestionForTestCases()?.title || 'Selected Question'}"`
+                        : `Select a question from the Questions tab to manage its test cases`
+                      }
+                    </CardDescription>
                 </div>
                 {selectedQuestionForTestCases && (
                   <Button onClick={() => {
